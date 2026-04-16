@@ -2,7 +2,6 @@ import telebot
 from telebot import types
 import requests
 import os
-import json
 
 TOKEN = os.environ.get("TOKEN", "8758161336:AAF3cFGkiBWThibk9rfCWdMj8-2RDh4EvB4")
 LOGMEAL_TOKEN = os.environ.get("LOGMEAL_TOKEN", "e13a5e2122a3d3ec6c44cedbee0b99b344a3395e")
@@ -19,8 +18,7 @@ def get_user(uid):
             "calories": 0, "meals": [], "region": "🇷🇺 Россия/СНГ",
             "fat_target": 140, "protein_target": 120, "carbs_target": 25,
             "sport_type": "", "last_gel_carbs": 0,
-            "search_results": [],
-            "pending_food": None
+            "search_results": [], "pending_food": None
         }
     return users[uid]
 
@@ -73,7 +71,7 @@ def choice_kb(n):
 def confirm_photo_kb():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("✅ Добавить в дневник", "✏️ Скорректировать")
-    kb.row("❌ Отмена", "◀️ Главное меню")
+    kb.row("❌ Отмена")
     return kb
 
 FOOD_DB = {
@@ -93,45 +91,61 @@ def bar(done, target):
     return "▓" * pct + "░" * (10 - pct)
 
 def analyze_photo(image_bytes):
-    """Анализ фото через LogMeal API"""
+    """Анализ фото через LogMeal API — исправленные endpoints"""
     try:
         headers = {"Authorization": f"Bearer {LOGMEAL_TOKEN}"}
 
-        # Шаг 1: Загружаем фото и получаем recognition
+        # Шаг 1: Распознавание блюда (новый endpoint)
         files = {"image": ("food.jpg", image_bytes, "image/jpeg")}
         r1 = requests.post(
-            "https://api.logmeal.com/v2/image/recognition/complete",
+            "https://api.logmeal.com/v2/image/segmentation/complete",
             headers=headers,
             files=files,
             timeout=30
         )
-        data1 = r1.json()
-        image_id = data1.get("imageId")
-        dishes = data1.get("foodName", [])
+        print(f"LogMeal step1 status: {r1.status_code}")
+        print(f"LogMeal step1 response: {r1.text[:300]}")
 
-        if not image_id or not dishes:
+        if r1.status_code != 200:
             return None
 
-        # Шаг 2: Получаем нутриенты
+        data1 = r1.json()
+        image_id = data1.get("imageId")
+
+        # Собираем названия блюд
+        segmentation = data1.get("segmentation_results", [])
+        dish_names = []
+        for seg in segmentation:
+            recognition = seg.get("recognition_results", [])
+            for rec in recognition:
+                name = rec.get("name", "")
+                if name:
+                    dish_names.append(name)
+
+        if not image_id:
+            return None
+
+        # Шаг 2: Нутриенты (новый endpoint)
         r2 = requests.post(
-            "https://api.logmeal.com/v2/nutritional/imageId",
+            "https://api.logmeal.com/v2/nutrition/recipe/nutritionalInfo",
             headers=headers,
             json={"imageId": image_id},
             timeout=15
         )
-        data2 = r2.json()
-        nutrients = data2.get("nutritional_info", {})
+        print(f"LogMeal step2 status: {r2.status_code}")
+        print(f"LogMeal step2 response: {r2.text[:300]}")
 
-        # Собираем названия блюд
-        dish_names = [d.get("name", "") for d in dishes if d.get("name")]
+        nutrients = {}
+        if r2.status_code == 200:
+            data2 = r2.json()
+            nutrients = data2.get("nutritional_info", {})
 
         result = {
-            "dishes": dish_names,
-            "calories": round(nutrients.get("calories", 0) or 0),
-            "fat": round(nutrients.get("totalFat", 0) or 0, 1),
-            "protein": round(nutrients.get("proteins", 0) or 0, 1),
-            "carbs": round(nutrients.get("totalCarbs", 0) or 0, 1),
-            "image_id": image_id
+            "dishes": dish_names if dish_names else ["Блюдо"],
+            "calories": round(float(nutrients.get("calories", 0) or 0)),
+            "fat": round(float(nutrients.get("totalFat", 0) or 0), 1),
+            "protein": round(float(nutrients.get("proteins", 0) or 0), 1),
+            "carbs": round(float(nutrients.get("totalCarbs", 0) or 0), 1),
         }
         return result
 
@@ -140,40 +154,30 @@ def analyze_photo(image_bytes):
         return None
 
 def search_food(query):
-    """Поиск продукта в Open Food Facts"""
     try:
         headers = {"User-Agent": "KetOSBot/1.0 (Telegram bot for keto diet tracking)"}
-        url = "https://world.openfoodfacts.org/cgi/search.pl"
         params = {
-            "search_terms": query,
-            "search_simple": 1,
-            "action": "process",
-            "json": 1,
-            "page_size": 20,
+            "search_terms": query, "search_simple": 1,
+            "action": "process", "json": 1, "page_size": 20,
             "fields": "product_name,nutriments,brands"
         }
-        r = requests.get(url, params=params, headers=headers, timeout=15)
+        r = requests.get("https://world.openfoodfacts.org/cgi/search.pl",
+            params=params, headers=headers, timeout=15)
         data = r.json()
-        products = data.get("products", [])
         results = []
-        for p in products:
+        for p in data.get("products", []):
             name = p.get("product_name", "").strip()
-            if not name or len(name) < 2:
-                continue
+            if not name or len(name) < 2: continue
             n = p.get("nutriments", {})
             fat = round(float(n.get("fat_100g") or 0), 1)
             protein = round(float(n.get("proteins_100g") or 0), 1)
             carbs = round(float(n.get("carbohydrates_100g") or 0), 1)
             cal = round(float(n.get("energy-kcal_100g") or 0))
-            if fat == 0 and protein == 0 and carbs == 0:
-                continue
+            if fat == 0 and protein == 0 and carbs == 0: continue
             brand = p.get("brands", "").strip()
-            display = name
-            if brand and brand.lower() not in name.lower():
-                display += f" — {brand}"
+            display = name + (f" — {brand}" if brand and brand.lower() not in name.lower() else "")
             results.append({"name": display[:50], "fat": fat, "protein": protein, "carbs": carbs, "cal": cal})
-            if len(results) >= 5:
-                break
+            if len(results) >= 5: break
         return results
     except Exception as e:
         print(f"Search error: {e}")
@@ -182,13 +186,12 @@ def search_food(query):
 def recovery_text(total_carbs):
     hours = max(4, int(total_carbs / 15))
     return (
-        f"🔄 *План возврата в кетоз*\n"
-        f"После {total_carbs}г углеводов из гелей\n\n"
-        f"⏱ *0–2 часа после финиша:*\n• Только вода и соль\n• Электролиты\n• Никакой еды!\n\n"
-        f"⏱ *2–3 часа:*\n• 1 ст.л. MCT масла\n\n"
-        f"⏱ *3–5 часов:*\n• Продолжай голодать\n• Лёгкая прогулка 20–30 мин\n\n"
-        f"⏱ *~{hours} часов — первый приём пищи:*\n• Жирное мясо или рыба\n• Некрахмальные овощи\n• Ноль углеводов!\n\n"
-        f"✅ *Через {hours}–{hours+2} часов ты снова в кетозе!*\n\n"
+        f"🔄 *План возврата в кетоз*\nПосле {total_carbs}г углеводов\n\n"
+        f"⏱ *0–2 часа:* Вода, соль, электролиты\n"
+        f"⏱ *2–3 часа:* 1 ст.л. MCT масла\n"
+        f"⏱ *3–5 часов:* Голодай + прогулка\n"
+        f"⏱ *~{hours} часов:* Жирное мясо + овощи\n\n"
+        f"✅ *Через {hours}–{hours+2} часов снова в кетозе!*\n"
         f"💡 Измерь кетоны через {hours} часов 🧪"
     )
 
@@ -197,22 +200,17 @@ def recovery_text(total_carbs):
 def handle_photo(msg):
     uid = msg.from_user.id
     u = get_user(uid)
-
     bot.send_message(msg.chat.id,
         "📸 *Фото получено!*\n🤖 Анализирую блюдо...\nЭто займёт 10-15 секунд ⏳",
         parse_mode="Markdown"
     )
-
-    # Скачиваем фото
     file_id = msg.photo[-1].file_id
     file_info = bot.get_file(file_id)
     file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}"
     image_bytes = requests.get(file_url).content
-
-    # Анализируем
     result = analyze_photo(image_bytes)
 
-    if not result:
+    if not result or (result["calories"] == 0 and result["fat"] == 0):
         bot.send_message(msg.chat.id,
             "❌ Не удалось распознать блюдо.\n\n"
             "Попробуй:\n• Сфотографировать ближе\n• Лучше освещение\n• Или добавь вручную 👇",
@@ -221,12 +219,10 @@ def handle_photo(msg):
         set_state(uid, "food")
         return
 
-    # Сохраняем для подтверждения
     u["pending_food"] = result
     set_state(uid, "confirm_photo")
-
-    dishes_text = ", ".join(result["dishes"][:3]) if result["dishes"] else "Блюдо"
-    carbs_warn = "⚠️ Много углеводов!" if result["carbs"] > 10 else "✅ Кето-дружественно"
+    dishes_text = ", ".join(result["dishes"][:3])
+    carbs_warn = "⚠️ Много углеводов для кето!" if result["carbs"] > 10 else "✅ Кето-дружественно"
 
     bot.send_message(msg.chat.id,
         f"🤖 *Результат анализа:*\n\n"
@@ -237,8 +233,7 @@ def handle_photo(msg):
         f"🟡 Углеводы: *{result['carbs']}г*\n\n"
         f"{carbs_warn}\n\n"
         f"Всё правильно? Добавляем в дневник?",
-        parse_mode="Markdown",
-        reply_markup=confirm_photo_kb()
+        parse_mode="Markdown", reply_markup=confirm_photo_kb()
     )
 
 @bot.message_handler(commands=["start"])
@@ -262,57 +257,39 @@ def handle_all(msg):
         bot.send_message(msg.chat.id, "✅ Главное меню:", reply_markup=main_kb())
         return
 
-    # ПРОФИЛЬ
     if state == "ask_name":
         u["name"] = text
         set_state(uid, "ask_weight")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("50-60 кг", "60-70 кг")
-        kb.row("70-80 кг", "80-90 кг")
-        kb.row("90-100 кг", "100+ кг")
-        bot.send_message(msg.chat.id, f"Привет, *{text}*! 💪\nКакой у тебя вес?",
-            parse_mode="Markdown", reply_markup=kb)
+        kb.row("50-60 кг", "60-70 кг"); kb.row("70-80 кг", "80-90 кг"); kb.row("90-100 кг", "100+ кг")
+        bot.send_message(msg.chat.id, f"Привет, *{text}*! 💪\nКакой у тебя вес?", parse_mode="Markdown", reply_markup=kb)
         return
 
     if state == "ask_weight":
-        u["weight"] = text
-        set_state(uid, "ask_activity")
+        u["weight"] = text; set_state(uid, "ask_activity")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("🏃 Бег/Трейл", "🚴 Велоспорт")
-        kb.row("🏊 Плавание", "🏋️ Силовые")
-        kb.row("⛷️ Лыжи/Триатлон", "🚶 Лёгкая активность")
+        kb.row("🏃 Бег/Трейл", "🚴 Велоспорт"); kb.row("🏊 Плавание", "🏋️ Силовые"); kb.row("⛷️ Лыжи/Триатлон", "🚶 Лёгкая")
         bot.send_message(msg.chat.id, "Твой вид спорта?", reply_markup=kb)
         return
 
     if state == "ask_activity":
-        u["activity"] = text
-        set_state(uid, "ask_goal")
+        u["activity"] = text; set_state(uid, "ask_goal")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("🔥 Похудение", "💪 Набор мышц")
-        kb.row("⚡ Производительность", "🎯 Поддержание")
+        kb.row("🔥 Похудение", "💪 Набор мышц"); kb.row("⚡ Производительность", "🎯 Поддержание")
         bot.send_message(msg.chat.id, "Твоя главная цель?", reply_markup=kb)
         return
 
     if state == "ask_goal":
         u["goal"] = text
-        if "Похудение" in text: cal = 1600
-        elif "Набор" in text: cal = 2400
-        elif "Производительность" in text: cal = 2200
-        else: cal = 1900
+        cal = 1600 if "Похудение" in text else 2400 if "Набор" in text else 2200 if "Производительность" in text else 1900
         u["fat_target"] = round(cal * 0.70 / 9)
         u["protein_target"] = round(cal * 0.25 / 4)
         u["carbs_target"] = round(cal * 0.05 / 4)
         set_state(uid, "menu")
         bot.send_message(msg.chat.id,
-            f"✅ *Профиль готов!*\n\n"
-            f"👤 {u['name']} | ⚖️ {u['weight']}\n"
-            f"🏃 {u['activity']} | 🎯 {u['goal']}\n\n"
-            f"📊 *Макросы на день:*\n"
-            f"🟠 Жиры: *{u['fat_target']}г*\n"
-            f"🔵 Белки: *{u['protein_target']}г*\n"
-            f"🟡 Углеводы: *{u['carbs_target']}г*\n\nПоехали! 🚀",
-            parse_mode="Markdown", reply_markup=main_kb()
-        )
+            f"✅ *Профиль готов!*\n\n👤 {u['name']} | ⚖️ {u['weight']}\n🏃 {u['activity']} | 🎯 {u['goal']}\n\n"
+            f"📊 *Макросы:*\n🟠 Жиры: *{u['fat_target']}г*\n🔵 Белки: *{u['protein_target']}г*\n🟡 Углеводы: *{u['carbs_target']}г*\n\nПоехали! 🚀",
+            parse_mode="Markdown", reply_markup=main_kb())
         return
 
     # ПОДТВЕРЖДЕНИЕ ФОТО
@@ -320,150 +297,96 @@ def handle_all(msg):
         if text == "✅ Добавить в дневник":
             food = u.get("pending_food")
             if food:
-                u["fat"] += food["fat"]
-                u["protein"] += food["protein"]
-                u["carbs"] += food["carbs"]
-                u["calories"] += food["calories"]
-                dishes = ", ".join(food["dishes"][:2]) if food["dishes"] else "Блюдо с фото"
+                u["fat"] += food["fat"]; u["protein"] += food["protein"]
+                u["carbs"] += food["carbs"]; u["calories"] += food["calories"]
+                dishes = ", ".join(food["dishes"][:2])
                 u["meals"].append(f"{dishes[:30]} ({food['calories']}ккал)")
                 carbs_left = u["carbs_target"] - u["carbs"]
-                warn = "\n⚠️ Лимит углеводов близко!" if carbs_left < 5 else ""
-                u["pending_food"] = None
-                set_state(uid, "menu")
+                u["pending_food"] = None; set_state(uid, "menu")
                 bot.send_message(msg.chat.id,
-                    f"✅ *Добавлено в дневник!*\n\n"
-                    f"Осталось углеводов сегодня: *{max(carbs_left,0)}г*{warn}",
-                    parse_mode="Markdown", reply_markup=main_kb()
-                )
+                    f"✅ *Добавлено!*\nОсталось углеводов: *{max(carbs_left,0)}г*",
+                    parse_mode="Markdown", reply_markup=main_kb())
             return
 
         if text == "✏️ Скорректировать":
             food = u.get("pending_food")
-            if food:
-                set_state(uid, "correct_photo")
-                bot.send_message(msg.chat.id,
-                    f"Текущие значения:\n"
-                    f"Жиры: {food['fat']}г | Белки: {food['protein']}г | Углеводы: {food['carbs']}г | Калории: {food['calories']}\n\n"
-                    f"Введи исправленные значения:\n"
-                    f"*Название, жиры, белки, углеводы*\n\n"
-                    f"Пример: `Греческий салат, 12, 8, 5`",
-                    parse_mode="Markdown"
-                )
+            set_state(uid, "correct_photo")
+            bot.send_message(msg.chat.id,
+                f"Текущие значения:\nЖ:{food['fat']}г Б:{food['protein']}г У:{food['carbs']}г Кал:{food['calories']}\n\n"
+                f"Введи исправленные:\n*Название, жиры, белки, углеводы*\n\nПример: `Рыба с овощами, 12, 25, 8`",
+                parse_mode="Markdown")
             return
 
         if text == "❌ Отмена":
-            u["pending_food"] = None
-            set_state(uid, "menu")
+            u["pending_food"] = None; set_state(uid, "menu")
             bot.send_message(msg.chat.id, "Отменено.", reply_markup=main_kb())
             return
 
-    # КОРРЕКЦИЯ ФОТО
     if state == "correct_photo":
         try:
             parts = text.split(",")
             name = parts[0].strip()
-            fat = int(parts[1].strip())
-            protein = int(parts[2].strip())
-            carbs = int(parts[3].strip())
+            fat = int(parts[1].strip()); protein = int(parts[2].strip()); carbs = int(parts[3].strip())
             cal = fat*9 + protein*4 + carbs*4
-            u["fat"] += fat; u["protein"] += protein
-            u["carbs"] += carbs; u["calories"] += cal
+            u["fat"] += fat; u["protein"] += protein; u["carbs"] += carbs; u["calories"] += cal
             u["meals"].append(f"{name} ({cal}ккал)")
             carbs_left = u["carbs_target"] - u["carbs"]
-            u["pending_food"] = None
-            set_state(uid, "menu")
+            u["pending_food"] = None; set_state(uid, "menu")
             bot.send_message(msg.chat.id,
-                f"✅ *{name}* добавлено!\nЖ:{fat}г Б:{protein}г У:{carbs}г ({cal}ккал)\n"
-                f"Осталось углеводов: *{max(carbs_left,0)}г*",
-                parse_mode="Markdown", reply_markup=main_kb()
-            )
+                f"✅ *{name}* добавлено!\nЖ:{fat}г Б:{protein}г У:{carbs}г\nОсталось: *{max(carbs_left,0)}г*",
+                parse_mode="Markdown", reply_markup=main_kb())
         except:
-            bot.send_message(msg.chat.id,
-                "❌ Нужны запятые!\nПример: `Греческий салат, 12, 8, 5`",
-                parse_mode="Markdown"
-            )
+            bot.send_message(msg.chat.id, "❌ Пример: `Рыба с овощами, 12, 25, 8`", parse_mode="Markdown")
         return
 
-    # СТАТУС
     if text == "📊 Мой статус":
         k = u["ketones"]
-        if k == 0: ks = "❓ Не измерено"
-        elif k < 0.5: ks = "❌ Не в кетозе"
-        elif k < 1.5: ks = "🟡 Лёгкий кетоз"
-        elif k < 3.0: ks = "✅ Оптимальный кетоз!"
-        else: ks = "🔥 Глубокий кетоз"
-        meals = u["meals"]
-        meals_text = "\n".join(f"  • {m}" for m in meals[-5:]) if meals else "  Пока ничего"
+        ks = "❓ Не измерено" if k==0 else "❌ Не в кетозе" if k<0.5 else "🟡 Лёгкий кетоз" if k<1.5 else "✅ Оптимальный кетоз!" if k<3 else "🔥 Глубокий кетоз"
+        meals_text = "\n".join(f"  • {m}" for m in u["meals"][-5:]) if u["meals"] else "  Пока ничего"
         bot.send_message(msg.chat.id,
-            f"📊 *Статус на сегодня*\n\n"
-            f"🧪 {ks} ({k} ммоль/л)\n\n"
+            f"📊 *Статус на сегодня*\n\n🧪 {ks} ({k} ммоль/л)\n\n"
             f"🟠 Жиры:     {bar(u['fat'],u['fat_target'])} {u['fat']}/{u['fat_target']}г\n"
             f"🔵 Белки:    {bar(u['protein'],u['protein_target'])} {u['protein']}/{u['protein_target']}г\n"
             f"🟡 Углеводы: {bar(u['carbs'],u['carbs_target'])} {u['carbs']}/{u['carbs_target']}г\n\n"
             f"🍽 *Съедено:*\n{meals_text}",
-            parse_mode="Markdown", reply_markup=main_kb()
-        )
+            parse_mode="Markdown", reply_markup=main_kb())
         return
 
-    # ФОТО БЛЮДА
     if text == "📸 Фото блюда":
         set_state(uid, "waiting_photo")
         bot.send_message(msg.chat.id,
-            "📸 *Отправь фото своего блюда!*\n\n"
-            "AI проанализирует тарелку и посчитает:\n"
-            "🔥 Калории\n🟠 Жиры\n🔵 Белки\n🟡 Углеводы\n\n"
-            "Просто прикрепи фото к сообщению 👇",
-            parse_mode="Markdown"
-        )
+            "📸 *Отправь фото своего блюда!*\n\nAI посчитает калории, жиры, белки и углеводы.\nПросто прикрепи фото 👇",
+            parse_mode="Markdown")
         return
 
-    # ЕДА
     if text == "🍽 Добавить еду":
         set_state(uid, "food")
-        bot.send_message(msg.chat.id,
-            "Что добавляем?\n\n📸 *Фото блюда* — AI посчитает сам!\n🔍 *Поиск* — найду в мировой базе!",
-            parse_mode="Markdown", reply_markup=food_kb()
-        )
+        bot.send_message(msg.chat.id, "Что добавляем?", reply_markup=food_kb())
         return
 
-    # ПОИСК
     if text in ["🔍 Поиск продукта", "🔍 Искать снова"]:
         set_state(uid, "search_food")
         bot.send_message(msg.chat.id,
-            "🔍 Напиши название продукта:\n\n"
-            "🇷🇺 `творог`, `курица`, `гречка`\n"
-            "🇬🇧 `salmon`, `cottage cheese`, `chicken`",
-            parse_mode="Markdown"
-        )
+            "🔍 Напиши название:\n🇷🇺 `творог`, `курица`\n🇬🇧 `salmon`, `chicken`",
+            parse_mode="Markdown")
         return
 
     if state == "search_food":
         bot.send_message(msg.chat.id, f"🔍 Ищу *{text}*...", parse_mode="Markdown")
         results = search_food(text)
-        translations = {
-            "колбаса": "sausage", "творог": "cottage cheese",
-            "гречка": "buckwheat", "кефир": "kefir",
-            "сметана": "sour cream", "курица": "chicken",
-            "говядина": "beef", "свинина": "pork",
-            "рыба": "fish", "картошка": "potato"
-        }
+        translations = {"колбаса":"sausage","творог":"cottage cheese","гречка":"buckwheat","курица":"chicken","говядина":"beef","свинина":"pork","рыба":"fish"}
         if not results:
             eng = translations.get(text.lower())
-            if eng:
-                results = search_food(eng)
+            if eng: results = search_food(eng)
         if not results:
-            bot.send_message(msg.chat.id,
-                "❌ Ничего не найдено. Попробуй по-английски или введи вручную.",
-                reply_markup=food_kb()
-            )
-            set_state(uid, "food")
-            return
+            bot.send_message(msg.chat.id, "❌ Не найдено. Попробуй по-английски.", reply_markup=food_kb())
+            set_state(uid, "food"); return
         u["search_results"] = results
-        resp = f"✅ *Найдено {len(results)} продуктов* (на 100г):\n\n"
+        resp = f"✅ *Найдено {len(results)}* (на 100г):\n\n"
         for i, p in enumerate(results, 1):
             warn = "⚠️" if p["carbs"] > 10 else "✅"
             resp += f"*{i}.* {p['name']}\n   🟠{p['fat']}г 🔵{p['protein']}г {warn}{p['carbs']}г 🔥{p['cal']}ккал\n\n"
-        resp += "Напиши номер чтобы добавить:"
+        resp += "Напиши номер:"
         set_state(uid, "choose_food")
         bot.send_message(msg.chat.id, resp, parse_mode="Markdown", reply_markup=choice_kb(len(results)))
         return
@@ -480,58 +403,42 @@ def handle_all(msg):
                 carbs_left = u["carbs_target"] - u["carbs"]
                 set_state(uid, "menu")
                 bot.send_message(msg.chat.id,
-                    f"✅ *{food['name'][:40]}* добавлено!\n"
-                    f"🟠+{food['fat']}г 🔵+{food['protein']}г 🟡+{food['carbs']}г\n"
-                    f"Осталось углеводов: *{max(carbs_left,0)}г*",
-                    parse_mode="Markdown", reply_markup=main_kb()
-                )
+                    f"✅ *{food['name'][:40]}* добавлено!\n🟠+{food['fat']}г 🔵+{food['protein']}г 🟡+{food['carbs']}г\nОсталось: *{max(carbs_left,0)}г*",
+                    parse_mode="Markdown", reply_markup=main_kb())
         return
 
-    # РУЧНОЙ ВВОД
     if text == "✏️ Ввести вручную":
         set_state(uid, "manual_food")
-        bot.send_message(msg.chat.id,
-            "Напиши: *Название, жиры, белки, углеводы*\n\nПример: `Творог 5%, 5, 18, 3`",
-            parse_mode="Markdown"
-        )
+        bot.send_message(msg.chat.id, "Напиши: *Название, жиры, белки, углеводы*\n\nПример: `Творог 5%, 5, 18, 3`", parse_mode="Markdown")
         return
 
     if text in FOOD_DB:
         food = FOOD_DB[text]
-        u["fat"] += food["fat"]; u["protein"] += food["protein"]
-        u["carbs"] += food["carbs"]; u["calories"] += food["cal"]
+        u["fat"] += food["fat"]; u["protein"] += food["protein"]; u["carbs"] += food["carbs"]; u["calories"] += food["cal"]
         u["meals"].append(f"{food['name']} ({food['cal']} ккал)")
         carbs_left = u["carbs_target"] - u["carbs"]
-        warn = "\n⚠️ Лимит близко!" if carbs_left < 5 else ""
         set_state(uid, "food")
         bot.send_message(msg.chat.id,
-            f"✅ *{food['name']}* добавлено!\n"
-            f"🟠+{food['fat']}г 🔵+{food['protein']}г 🟡+{food['carbs']}г{warn}\n"
-            f"Осталось углеводов: *{max(carbs_left,0)}г*",
-            parse_mode="Markdown", reply_markup=food_kb()
-        )
+            f"✅ *{food['name']}* добавлено!\n🟠+{food['fat']}г 🔵+{food['protein']}г 🟡+{food['carbs']}г\nОсталось: *{max(carbs_left,0)}г*",
+            parse_mode="Markdown", reply_markup=food_kb())
         return
 
     if state == "manual_food":
         try:
             parts = text.split(",")
-            name = parts[0].strip()
-            fat = int(parts[1].strip()); protein = int(parts[2].strip()); carbs = int(parts[3].strip())
+            name = parts[0].strip(); fat = int(parts[1].strip()); protein = int(parts[2].strip()); carbs = int(parts[3].strip())
             cal = fat*9 + protein*4 + carbs*4
             u["fat"] += fat; u["protein"] += protein; u["carbs"] += carbs; u["calories"] += cal
             u["meals"].append(f"{name} ({cal}ккал)")
             carbs_left = u["carbs_target"] - u["carbs"]
             set_state(uid, "menu")
             bot.send_message(msg.chat.id,
-                f"✅ *{name}* добавлено!\nЖ:{fat}г Б:{protein}г У:{carbs}г ({cal}ккал)\n"
-                f"Осталось углеводов: *{max(carbs_left,0)}г*",
-                parse_mode="Markdown", reply_markup=main_kb()
-            )
+                f"✅ *{name}* добавлено!\nЖ:{fat}г Б:{protein}г У:{carbs}г\nОсталось: *{max(carbs_left,0)}г*",
+                parse_mode="Markdown", reply_markup=main_kb())
         except:
             bot.send_message(msg.chat.id, "❌ Пример: `Творог 5%, 5, 18, 3`", parse_mode="Markdown")
         return
 
-    # КЕТОНЫ
     if text == "🧪 Ввести кетоны":
         set_state(uid, "ketones")
         bot.send_message(msg.chat.id, "Введи уровень кетонов (ммоль/л)\nНапример: *1.8*", parse_mode="Markdown")
@@ -541,97 +448,67 @@ def handle_all(msg):
         try:
             val = float(text.replace(",", "."))
             u["ketones"] = val
-            if val < 0.5: s = "❌ Не в кетозе\n💡 Сократи углеводы до 20г/день"
-            elif val < 1.5: s = "🟡 Лёгкий кетоз\n💡 Уменьши углеводы ещё на 5г"
-            elif val < 3.0: s = "✅ Оптимальный кетоз!\n💡 Продолжай в том же духе"
-            else: s = "🔥 Глубокий кетоз\n💡 Пей больше воды + электролиты"
+            s = "❌ Не в кетозе\n💡 Сократи углеводы" if val<0.5 else "🟡 Лёгкий кетоз\n💡 Уменьши углеводы на 5г" if val<1.5 else "✅ Оптимальный кетоз!\n💡 Продолжай!" if val<3 else "🔥 Глубокий кетоз\n💡 Пей воду + электролиты"
             set_state(uid, "menu")
             bot.send_message(msg.chat.id, f"🧪 *{val} ммоль/л*\n\n{s}", parse_mode="Markdown", reply_markup=main_kb())
         except:
             bot.send_message(msg.chat.id, "❌ Введи число: *1.8*", parse_mode="Markdown")
         return
 
-    # СПОРТ
     if text == "⚡ Спортивный режим":
         set_state(uid, "sport")
         bot.send_message(msg.chat.id, "⚡ Выбери активность:", reply_markup=sport_kb())
         return
 
     if text in ["🔄 План возврата в кетоз", "🔄 Возврат в кетоз"]:
-        total = u.get("last_gel_carbs", 60)
         set_state(uid, "menu")
-        bot.send_message(msg.chat.id, recovery_text(total), parse_mode="Markdown", reply_markup=main_kb())
+        bot.send_message(msg.chat.id, recovery_text(u.get("last_gel_carbs", 60)), parse_mode="Markdown", reply_markup=main_kb())
         return
 
     if text == "🏋️ Силовая":
         set_state(uid, "menu")
-        bot.send_message(msg.chat.id,
-            "🏋️ *Силовая на кето*\n\nДо: MCT масло + кофе\nВо время: вода + соль\nПосле: 30-40г белка за 30 мин",
-            parse_mode="Markdown", reply_markup=main_kb())
+        bot.send_message(msg.chat.id, "🏋️ *Силовая на кето*\n\nДо: MCT масло + кофе\nВо время: вода + соль\nПосле: 30-40г белка за 30 мин", parse_mode="Markdown", reply_markup=main_kb())
         return
 
     if text in ["🏃 Трейл/Бег", "🚴 Велогонка", "🏊 Триатлон", "⛷️ Лыжи"]:
-        u["sport_type"] = text
-        set_state(uid, "ask_distance")
+        u["sport_type"] = text; set_state(uid, "ask_distance")
         bot.send_message(msg.chat.id, "Дистанция или время?\nПример: *42 км* или *3 часа*", parse_mode="Markdown")
         return
 
     if state == "ask_distance":
         try:
             t = text.lower()
-            if "час" in t:
-                hours = float(''.join(c for c in t if c.isdigit() or c == '.'))
-            elif "км" in t:
-                km = float(''.join(c for c in t if c.isdigit() or c == '.'))
-                hours = km / 10
-            else:
-                hours = 2
-            gels = max(1, int(hours / 1.5))
-            total = gels * 20
-            u["last_gel_carbs"] = total
+            hours = float(''.join(c for c in t if c.isdigit() or c=='.')) if "час" in t else float(''.join(c for c in t if c.isdigit() or c=='.'))/10 if "км" in t else 2
+            gels = max(1, int(hours/1.5)); total = gels*20; u["last_gel_carbs"] = total
             resp = f"⚡ *Протокол гелей*\n📍 {text} (~{int(hours)}ч)\n💊 Гелей: {gels} шт\n\n"
             times = [0, 0.4, 0.7, 0.9]
             for i in range(gels):
-                t_min = int(hours * times[min(i,3)] * 60)
-                label = "За 30 мин до старта" if i==0 else f"Через {t_min} мин"
-                resp += f"🟡 *{label}:* Гель #{i+1} — 20г\n"
-            resp += (
-                f"\n📊 Итого: *{total}г углеводов*\n"
-                f"⏱ Возврат в кетоз: *~{max(4,int(total/15))} часов*\n\n"
-                f"🏁 После финиша нажми:\n👉 *🔄 План возврата в кетоз*"
-            )
+                t_min = int(hours*times[min(i,3)]*60)
+                resp += f"🟡 *{'За 30 мин до старта' if i==0 else f'Через {t_min} мин'}:* Гель #{i+1} — 20г\n"
+            resp += f"\n📊 Итого: *{total}г*\n⏱ Возврат: *~{max(4,int(total/15))} часов*\n\n🏁 После финиша нажми:\n👉 *🔄 План возврата в кетоз*"
             set_state(uid, "menu")
             bot.send_message(msg.chat.id, resp, parse_mode="Markdown", reply_markup=after_gel_kb())
         except:
             bot.send_message(msg.chat.id, "Напиши: *42 км* или *3 часа*", parse_mode="Markdown")
         return
 
-    # СЕМЬЯ
     if text == "👨‍👩‍👧 Семья":
-        link = f"https://t.me/ketOSzoneBot?start=family_{uid}"
-        meals = u["meals"]
-        meals_text = "\n".join(f"  • {m}" for m in meals) if meals else "  Пока нет блюд"
+        meals_text = "\n".join(f"  • {m}" for m in u["meals"]) if u["meals"] else "  Пока нет"
         bot.send_message(msg.chat.id,
-            f"👨‍👩‍👧 *Семейный режим*\n\nПригласи партнёра:\n`{link}`\n\n📋 *Твой рацион:*\n{meals_text}",
+            f"👨‍👩‍👧 *Семейный режим*\n\nПригласи партнёра:\n`https://t.me/ketOSzoneBot?start=family_{uid}`\n\n📋 *Рацион:*\n{meals_text}",
             parse_mode="Markdown", reply_markup=main_kb())
         return
 
-    # НАСТРОЙКИ
     if text == "⚙️ Настройки":
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("🔄 Сбросить день")
-        kb.row("◀️ Главное меню")
+        kb.row("🔄 Сбросить день"); kb.row("◀️ Главное меню")
         bot.send_message(msg.chat.id,
-            f"⚙️ *Настройки*\n\n"
-            f"👤 {u.get('name','—')} | ⚖️ {u.get('weight','—')}\n"
-            f"🏃 {u.get('activity','—')} | 🎯 {u.get('goal','—')}\n\n"
-            f"🟠 Жиры: {u['fat_target']}г\n🔵 Белки: {u['protein_target']}г\n🟡 Углеводы: {u['carbs_target']}г",
+            f"⚙️ *Настройки*\n\n👤 {u.get('name','—')} | ⚖️ {u.get('weight','—')}\n🏃 {u.get('activity','—')} | 🎯 {u.get('goal','—')}\n\n🟠 {u['fat_target']}г 🔵 {u['protein_target']}г 🟡 {u['carbs_target']}г",
             parse_mode="Markdown", reply_markup=kb)
         return
 
     if text == "🔄 Сбросить день":
-        u["fat"] = u["protein"] = u["carbs"] = u["calories"] = 0
-        u["meals"] = []
+        u["fat"] = u["protein"] = u["carbs"] = u["calories"] = 0; u["meals"] = []
         set_state(uid, "menu")
         bot.send_message(msg.chat.id, "✅ День сброшен!", reply_markup=main_kb())
         return
@@ -639,5 +516,5 @@ def handle_all(msg):
     set_state(uid, "menu")
     bot.send_message(msg.chat.id, "Используй кнопки 👇", reply_markup=main_kb())
 
-print("🔥 KetOS бот запущен с AI анализом фото!")
+print("🔥 KetOS бот запущен с исправленным LogMeal API!")
 bot.polling(none_stop=True, interval=0, timeout=20)
