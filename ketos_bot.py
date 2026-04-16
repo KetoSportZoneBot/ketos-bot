@@ -4,7 +4,7 @@ import requests
 import os
 
 TOKEN = os.environ.get("TOKEN", "8758161336:AAF3cFGkiBWThibk9rfCWdMj8-2RDh4EvB4")
-LOGMEAL_TOKEN = os.environ.get("LOGMEAL_TOKEN", "e13a5e2122a3d3ec6c44cedbee0b99b344a3395e")
+LOGMEAL_TOKEN = os.environ.get("LOGMEAL_TOKEN", "a50507ce2019da95e0341da750d887449d40df54")
 bot = telebot.TeleBot(TOKEN)
 
 users = {}
