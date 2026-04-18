@@ -2,6 +2,8 @@ import telebot
 from telebot import types
 import requests
 import os
+import re
+import threading
 
 TOKEN = os.environ.get("TOKEN", "8758161336:AAF3cFGkiBWThibk9rfCWdMj8-2RDh4EvB4")
 LOGMEAL_TOKEN = os.environ.get("LOGMEAL_TOKEN", "a50507ce2019da95e0341da750d887449d40df54")
@@ -461,28 +463,24 @@ def handle_photo(msg):
         f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}",
         timeout=10).content
 
-    import threading
-
-    def do_analysis():
+    def do_analysis(_analyze=analyze_photo, _image=image_bytes, _uid=uid, _u=u, _msg=msg):
         try:
-            result = analyze_photo(image_bytes)
+            result = _analyze(_image)
             if not result or (result["calories"] == 0 and result["fat"] == 0 and result["protein"] == 0):
-                bot.send_message(msg.chat.id,
+                bot.send_message(_msg.chat.id,
                     "❌ Не удалось распознать блюдо.\n\n"
                     "Попробуй:\n• Сфотографировать ближе\n"
                     "• Улучшить освещение\n"
                     "• Или нажми *✏️ Ввести еду вручную*",
                     parse_mode="Markdown", reply_markup=main_kb())
-                set_state(uid, "menu")
+                set_state(_uid, "menu")
                 return
-            u["pending_food"] = result
-            set_state(uid, "confirm_photo")
+            _u["pending_food"] = result
+            set_state(_uid, "confirm_photo")
             dishes_text = ", ".join(result["dishes"][:3])
             warn = "⚠️ Много углеводов!" if result["carbs"] > 10 else "✅ Кето-дружественно"
-            note = ""
-            if result.get("from_fallback"):
-                note = "\n\n_⚠️ Макросы примерные — рекомендую скорректировать_"
-            bot.send_message(msg.chat.id,
+            note = "\n\n_⚠️ Макросы примерные — рекомендую скорректировать_" if result.get("from_fallback") else ""
+            bot.send_message(_msg.chat.id,
                 f"🤖 *Результат анализа:*\n\n"
                 f"🍽 *Блюдо:* {dishes_text}\n\n"
                 f"🔥 Калории: *{result['calories']} ккал*\n"
@@ -493,10 +491,10 @@ def handle_photo(msg):
                 parse_mode="Markdown", reply_markup=confirm_photo_kb())
         except Exception as e:
             print(f"Photo thread error: {e}")
-            bot.send_message(msg.chat.id,
+            bot.send_message(_msg.chat.id,
                 "❌ Ошибка анализа. Попробуй ещё раз или введи вручную.",
                 reply_markup=main_kb())
-            set_state(uid, "menu")
+            set_state(_uid, "menu")
 
     t = threading.Thread(target=do_analysis)
     t.daemon = True
@@ -733,8 +731,6 @@ def handle_all(msg):
 
     if state == "manual_food":
         try:
-            import re
-            # Убираем лишние пробелы, приводим к нижнему регистру не нужно — берём как есть
             parts = text.strip().split()
 
             # Ищем числа (могут быть с г/мл/kcal)
