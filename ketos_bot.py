@@ -548,20 +548,20 @@ def handle_photo(msg):
         try:
             result = analyze_photo(image_bytes)
             if not result or (result["calories"] == 0 and result["fat"] == 0 and result["protein"] == 0):
-                bot.send_message(_msg.chat.id,
+                bot.send_message(msg.chat.id,
                     "❌ Не удалось распознать блюдо.\n\n"
                     "Попробуй:\n• Сфотографировать ближе\n"
                     "• Улучшить освещение\n"
                     "• Или нажми *✏️ Ввести еду вручную*",
                     parse_mode="Markdown", reply_markup=main_kb())
-                set_state(_uid, "menu")
+                set_state(uid, "menu")
                 return
-            _u["pending_food"] = result
-            set_state(_uid, "confirm_photo")
+            u["pending_food"] = result
+            set_state(uid, "confirm_photo")
             dishes_text = ", ".join(result["dishes"][:3])
             warn = "⚠️ Много углеводов!" if result["carbs"] > 10 else "✅ Кето-дружественно"
             note = "\n\n_⚠️ Макросы примерные — рекомендую скорректировать_" if result.get("from_fallback") else ""
-            bot.send_message(_msg.chat.id,
+            bot.send_message(msg.chat.id,
                 f"🤖 *Результат анализа:*\n\n"
                 f"🍽 *Блюдо:* {dishes_text}\n\n"
                 f"🔥 Калории: *{result['calories']} ккал*\n"
@@ -572,10 +572,10 @@ def handle_photo(msg):
                 parse_mode="Markdown", reply_markup=confirm_photo_kb())
         except Exception as e:
             print(f"Photo thread error: {e}")
-            bot.send_message(_msg.chat.id,
+            bot.send_message(msg.chat.id,
                 "❌ Ошибка анализа. Попробуй ещё раз или введи вручную.",
                 reply_markup=main_kb())
-            set_state(_uid, "menu")
+            set_state(uid, "menu")
 
     t = threading.Thread(target=do_analysis)
     t.daemon = True
