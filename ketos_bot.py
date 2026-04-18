@@ -19,7 +19,7 @@ def get_user(uid):
         users[uid] = {
             "name": "", "weight": 70, "height": 170, "age": 30,
             "goal": "", "activity": "", "activity_coef": 1.55,
-            "keto_level": "", "sport_type": "",
+            "keto_level": "🟡 Нормальное кето", "sport_type": "",
             "ketones": 0.0,
             "fat": 0, "protein": 0, "carbs": 0, "calories": 0,
             "fat_target": 140, "protein_target": 120,
@@ -29,6 +29,7 @@ def get_user(uid):
             "search_results": [],
             "pending_food": None,
             "pending_alcohol": None,
+            "pending_search_food": None,
         }
     return users[uid]
 
@@ -721,17 +722,46 @@ def handle_all(msg):
             idx = int(text) - 1
             results = u.get("search_results", [])
             if 0 <= idx < len(results):
+                u["pending_search_food"] = results[idx]
+                set_state(uid, "ask_food_grams")
                 food = results[idx]
-                u["fat"] += food["fat"]; u["protein"] += food["protein"]
-                u["carbs"] += food["carbs"]; u["calories"] += food["cal"]
-                u["meals"].append(f"{food['name'][:25]} (100г | {food['cal']}ккал)")
-                carbs_left = u["carbs_target"] - u["carbs"]
-                set_state(uid, "menu")
                 bot.send_message(msg.chat.id,
-                    f"✅ *{food['name'][:40]}* добавлено! (100г)\n"
-                    f"🟠+{food['fat']}г 🔵+{food['protein']}г 🟡+{food['carbs']}г 🔥+{food['cal']}ккал\n"
-                    f"Осталось углеводов: *{max(carbs_left, 0)}г*",
-                    parse_mode="Markdown", reply_markup=main_kb())
+                    f"✅ *{food['name'][:40]}*\n\n"
+                    f"На 100г: 🟠{food['fat']}г 🔵{food['protein']}г 🟡{food['carbs']}г 🔥{food['cal']}ккал\n\n"
+                    f"Сколько грамм съел?\n\n"
+                    f"Напиши число, например: `150`",
+                    parse_mode="Markdown")
+        return
+
+    if state == "ask_food_grams":
+        try:
+            grams = float(text.replace("г","").replace("гр","").strip())
+            food = u.get("pending_search_food", {})
+            ratio = grams / 100
+            fat     = round(food["fat"]     * ratio, 1)
+            protein = round(food["protein"] * ratio, 1)
+            carbs   = round(food["carbs"]   * ratio, 1)
+            cal     = round(food["cal"]     * ratio)
+            u["fat"]      += fat
+            u["protein"]  += protein
+            u["carbs"]    += carbs
+            u["calories"] += cal
+            u["meals"].append(f"{food['name'][:25]} ({int(grams)}г | {cal}ккал)")
+            carbs_left = u["carbs_target"] - u["carbs"]
+            warn = "\n⚠️ Лимит углеводов близко!" if carbs_left < 5 else ""
+            set_state(uid, "menu")
+            bot.send_message(msg.chat.id,
+                f"✅ *{food['name'][:40]}* — {int(grams)}г добавлено!\n\n"
+                f"🟠 Жиры: +{fat}г\n"
+                f"🔵 Белки: +{protein}г\n"
+                f"🟡 Углеводы: +{carbs}г\n"
+                f"🔥 Калории: +{cal} ккал{warn}\n\n"
+                f"Осталось углеводов: *{max(round(u['carbs_target'] - u['carbs']), 0)}г*",
+                parse_mode="Markdown", reply_markup=main_kb())
+        except:
+            bot.send_message(msg.chat.id,
+                "❌ Введи количество грамм числом, например: `150`",
+                parse_mode="Markdown")
         return
 
     # ========================
@@ -983,12 +1013,13 @@ def handle_all(msg):
     # НАСТРОЙКИ
     # ========================
     if text == "⚙️ Настройки":
+        keto_level = u.get("keto_level") or "🟡 Нормальное кето"
         bot.send_message(msg.chat.id,
             f"⚙️ *Настройки*\n\n"
             f"👤 {u.get('name','—')}\n"
             f"⚖️ {u.get('weight','—')}кг | 📏 {u.get('height','—')}см | 🎂 {int(u.get('age', 0))}лет\n"
             f"🏃 {u.get('sport_type','—')} | 🎯 {u.get('goal','—')}\n"
-            f"🥗 Режим: {u.get('keto_level','—')}\n\n"
+            f"🥗 Режим: {keto_level}\n\n"
             f"📊 *Текущие цели:*\n"
             f"🔥 {u['cal_target']} ккал | 🟠 {u['fat_target']}г | "
             f"🔵 {u['protein_target']}г | 🟡 {u['carbs_target']}г",
