@@ -447,6 +447,87 @@ def profile_done_text(u, macros):
         f"_TDEE: {macros.get('tdee', u['cal_target'])} ккал_\n\nПоехали! 🚀"
     )
 
+def analyze_photo(image_bytes):
+    try:
+        headers = {"Authorization": f"Bearer {LOGMEAL_TOKEN}"}
+        files = {"image": ("food.jpg", image_bytes, "image/jpeg")}
+        r1 = requests.post(
+            "https://api.logmeal.com/v2/image/segmentation/complete",
+            headers=headers, files=files, timeout=30)
+        print(f"LogMeal step1: {r1.status_code} {r1.text[:300]}")
+        if r1.status_code != 200:
+            return None
+        data1 = r1.json()
+        image_id = data1.get("imageId")
+        dish_names = []
+        for seg in data1.get("segmentation_results", []):
+            for rec in seg.get("recognition_results", []):
+                name = rec.get("name", "")
+                if name:
+                    dish_names.append(name)
+        if not image_id:
+            return None
+
+        fat = protein = carbs = calories = 0
+
+        # Попытка 1: nutritionalInfo
+        r2 = requests.post(
+            "https://api.logmeal.com/v2/nutrition/recipe/nutritionalInfo",
+            headers=headers, json={"imageId": image_id}, timeout=15)
+        print(f"LogMeal step2: {r2.status_code} {r2.text[:300]}")
+        if r2.status_code == 200:
+            data2 = r2.json()
+            n = data2.get("nutritional_info", {}) or data2.get("nutrition", {}) or data2
+            fat      = float(n.get("totalFat", 0) or n.get("fat", 0) or 0)
+            protein  = float(n.get("proteins", 0) or n.get("protein", 0) or 0)
+            carbs    = float(n.get("totalCarbs", 0) or n.get("carbs", 0) or 0)
+            calories = float(n.get("calories", 0) or n.get("energy", 0) or 0)
+
+        # Попытка 2: ingredients
+        if fat == 0 and protein == 0 and carbs == 0:
+            r3 = requests.post(
+                "https://api.logmeal.com/v2/nutrition/recipe/ingredients",
+                headers=headers, json={"imageId": image_id}, timeout=15)
+            print(f"LogMeal step3: {r3.status_code} {r3.text[:300]}")
+            if r3.status_code == 200:
+                for ing in r3.json().get("ingredients", []):
+                    n = ing.get("nutritional_info", {})
+                    fat      += float(n.get("totalFat", 0) or 0)
+                    protein  += float(n.get("proteins", 0) or 0)
+                    carbs    += float(n.get("totalCarbs", 0) or 0)
+                    calories += float(n.get("calories", 0) or 0)
+
+        # Попытка 3: резервная база
+        if fat == 0 and protein == 0 and carbs == 0:
+            fallback = get_fallback_macros(dish_names)
+            if fallback:
+                fat     = fallback["fat"]
+                protein = fallback["protein"]
+                carbs   = fallback["carbs"]
+                if calories == 0:
+                    calories = fallback["cal"]
+                return {
+                    "dishes": dish_names if dish_names else ["Блюдо"],
+                    "calories": round(calories),
+                    "fat": round(fat, 1),
+                    "protein": round(protein, 1),
+                    "carbs": round(carbs, 1),
+                    "from_fallback": True,
+                }
+
+        return {
+            "dishes": dish_names if dish_names else ["Блюдо"],
+            "calories": round(calories),
+            "fat": round(fat, 1),
+            "protein": round(protein, 1),
+            "carbs": round(carbs, 1),
+            "from_fallback": False,
+        }
+    except Exception as e:
+        print(f"LogMeal error: {e}")
+        return None
+
+
 # ============================================================
 # PHOTO HANDLER
 # ============================================================
@@ -463,9 +544,9 @@ def handle_photo(msg):
         f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}",
         timeout=10).content
 
-    def do_analysis(_analyze=analyze_photo, _image=image_bytes, _uid=uid, _u=u, _msg=msg):
+    def do_analysis():
         try:
-            result = _analyze(_image)
+            result = analyze_photo(image_bytes)
             if not result or (result["calories"] == 0 and result["fat"] == 0 and result["protein"] == 0):
                 bot.send_message(_msg.chat.id,
                     "❌ Не удалось распознать блюдо.\n\n"
