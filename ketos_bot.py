@@ -208,7 +208,7 @@ def analyze_photo(image_bytes):
         r1 = requests.post(
             "https://api.logmeal.com/v2/image/segmentation/complete",
             headers=headers, files=files, timeout=30)
-        print(f"LogMeal step1: {r1.status_code} {r1.text[:200]}")
+        print(f"LogMeal step1: {r1.status_code} {r1.text[:300]}")
         if r1.status_code != 200:
             return None
         data1 = r1.json()
@@ -221,19 +221,51 @@ def analyze_photo(image_bytes):
                     dish_names.append(name)
         if not image_id:
             return None
+
+        # Вариант 1: nutritionalInfo
         r2 = requests.post(
             "https://api.logmeal.com/v2/nutrition/recipe/nutritionalInfo",
             headers=headers, json={"imageId": image_id}, timeout=15)
-        print(f"LogMeal step2: {r2.status_code} {r2.text[:200]}")
-        nutrients = {}
+        print(f"LogMeal step2: {r2.status_code} {r2.text[:300]}")
+
+        fat = protein = carbs = calories = 0
+
         if r2.status_code == 200:
-            nutrients = r2.json().get("nutritional_info", {})
+            data2 = r2.json()
+            # Пробуем разные поля
+            n = data2.get("nutritional_info", {})
+            if not n:
+                n = data2.get("nutrition", {})
+            if not n:
+                n = data2
+
+            fat      = float(n.get("totalFat", 0) or n.get("fat", 0) or 0)
+            protein  = float(n.get("proteins", 0) or n.get("protein", 0) or 0)
+            carbs    = float(n.get("totalCarbs", 0) or n.get("carbs", 0) or n.get("carbohydrates", 0) or 0)
+            calories = float(n.get("calories", 0) or n.get("energy", 0) or 0)
+
+        # Вариант 2: если макросы 0 — пробуем ingredients endpoint
+        if fat == 0 and protein == 0 and carbs == 0:
+            r3 = requests.post(
+                "https://api.logmeal.com/v2/nutrition/recipe/ingredients",
+                headers=headers, json={"imageId": image_id}, timeout=15)
+            print(f"LogMeal step3 (ingredients): {r3.status_code} {r3.text[:400]}")
+            if r3.status_code == 200:
+                data3 = r3.json()
+                # Суммируем по всем ингредиентам
+                for ing in data3.get("ingredients", []):
+                    n = ing.get("nutritional_info", {})
+                    fat      += float(n.get("totalFat", 0) or 0)
+                    protein  += float(n.get("proteins", 0) or 0)
+                    carbs    += float(n.get("totalCarbs", 0) or 0)
+                    calories += float(n.get("calories", 0) or 0)
+
         return {
-            "dishes": dish_names if dish_names else ["Блюдо"],
-            "calories": round(float(nutrients.get("calories", 0) or 0)),
-            "fat":      round(float(nutrients.get("totalFat", 0) or 0), 1),
-            "protein":  round(float(nutrients.get("proteins", 0) or 0), 1),
-            "carbs":    round(float(nutrients.get("totalCarbs", 0) or 0), 1),
+            "dishes":   dish_names if dish_names else ["Блюдо"],
+            "calories": round(calories),
+            "fat":      round(fat, 1),
+            "protein":  round(protein, 1),
+            "carbs":    round(carbs, 1),
         }
     except Exception as e:
         print(f"LogMeal error: {e}")
