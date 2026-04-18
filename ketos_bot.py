@@ -593,36 +593,82 @@ def handle_all(msg):
         set_state(uid, "manual_food")
         bot.send_message(msg.chat.id,
             "✏️ *Ввод еды вручную*\n\n"
-            "Напиши: *Название, жиры, белки, углеводы*\n\n"
+            "Напиши название и цифры через пробел:\n"
+            "*название жиры белки углеводы*\n\n"
+            "Можно добавить граммы:\n"
+            "*название количество_г жиры белки углеводы*\n\n"
             "Примеры:\n"
-            "`Творог 5%, 5, 18, 3`\n"
-            "`Куриная грудка, 2, 30, 0`\n"
-            "`Гречка отварная, 1, 4, 21`",
+            "`творог 5 18 3`\n"
+            "`курица 200г 2 30 0`\n"
+            "`кофе с молоком 150мл 1 1 3`\n"
+            "`Греческий салат 300г 12 8 5`\n\n"
+            "Запятые не нужны, пиши как удобно 👌",
             parse_mode="Markdown")
         return
 
     if state == "manual_food":
         try:
-            parts = text.split(",")
-            name    = parts[0].strip()
-            fat     = int(parts[1].strip())
-            protein = int(parts[2].strip())
-            carbs   = int(parts[3].strip())
-            cal = fat * 9 + protein * 4 + carbs * 4
-            u["fat"] += fat; u["protein"] += protein
-            u["carbs"] += carbs; u["calories"] += cal
-            u["meals"].append(f"{name} (Ж{fat} Б{protein} У{carbs} | {cal}ккал)")
+            import re
+            # Убираем лишние пробелы, приводим к нижнему регистру не нужно — берём как есть
+            parts = text.strip().split()
+
+            # Ищем числа (могут быть с г/мл/kcal)
+            numbers = []
+            name_parts = []
+            amount_str = ""
+
+            for part in parts:
+                # Убираем единицы и проверяем число
+                clean = re.sub(r'[гГмлМкКcалCкк]+$', '', part)
+                if clean.replace('.', '').isdigit():
+                    # Проверяем — это количество (г/мл) или макрос?
+                    if (part.endswith('г') or part.endswith('Г') or
+                            part.endswith('мл') or part.endswith('МЛ') or
+                            part.endswith('мЛ') or part.lower().endswith('мл')):
+                        amount_str = part  # запоминаем количество
+                    else:
+                        numbers.append(int(float(clean)))
+                else:
+                    name_parts.append(part)
+
+            if len(numbers) < 3:
+                raise ValueError("Мало цифр")
+
+            name    = " ".join(name_parts) if name_parts else "Блюдо"
+            name    = name.strip()
+            # Первая буква заглавная автоматически
+            name    = name[0].upper() + name[1:] if name else "Блюдо"
+
+            fat     = numbers[0]
+            protein = numbers[1]
+            carbs   = numbers[2]
+            cal     = fat * 9 + protein * 4 + carbs * 4
+
+            amount_label = f" {amount_str}" if amount_str else ""
+
+            u["fat"]      += fat
+            u["protein"]  += protein
+            u["carbs"]    += carbs
+            u["calories"] += cal
+            u["meals"].append(
+                f"{name}{amount_label} (Ж{fat} Б{protein} У{carbs} | {cal}ккал)")
+
             carbs_left = u["carbs_target"] - u["carbs"]
             warn = "\n⚠️ Лимит углеводов близко!" if carbs_left < 5 else ""
             set_state(uid, "menu")
             bot.send_message(msg.chat.id,
-                f"✅ *{name}* добавлено!\n"
-                f"🟠 +{fat}г | 🔵 +{protein}г | 🟡 +{carbs}г | 🔥 +{cal} ккал{warn}\n\n"
+                f"✅ *{name}{amount_label}* добавлено!\n"
+                f"🟠 Жиры: +{fat}г | 🔵 Белки: +{protein}г | "
+                f"🟡 Углеводы: +{carbs}г | 🔥 +{cal} ккал{warn}\n\n"
                 f"Осталось углеводов: *{max(carbs_left, 0)}г*",
                 parse_mode="Markdown", reply_markup=main_kb())
         except:
             bot.send_message(msg.chat.id,
-                "❌ Неверный формат!\nПример: `Творог 5%, 5, 18, 3`",
+                "❌ Не понял формат.\n\n"
+                "Напиши название и три числа через пробел:\n"
+                "`творог 5 18 3`\n"
+                "`курица 200г 2 30 0`\n"
+                "`кофе с молоком 150мл 1 1 3`",
                 parse_mode="Markdown")
         return
 
