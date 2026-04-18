@@ -201,7 +201,59 @@ ALCOHOL_DB = {
 # API FUNCTIONS
 # ============================================================
 
-def analyze_photo(image_bytes):
+# Резервная база макросов на 100г для частых блюд
+FALLBACK_MACROS = {
+    "boiled egg":        {"fat": 10, "protein": 13, "carbs": 1,  "cal": 143},
+    "egg":               {"fat": 10, "protein": 13, "carbs": 1,  "cal": 143},
+    "egg salad":         {"fat": 11, "protein": 8,  "carbs": 2,  "cal": 140},
+    "custard":           {"fat": 4,  "protein": 4,  "carbs": 18, "cal": 122},
+    "fried fish":        {"fat": 12, "protein": 18, "carbs": 5,  "cal": 200},
+    "fish":              {"fat": 10, "protein": 20, "carbs": 0,  "cal": 170},
+    "schnitzel":         {"fat": 14, "protein": 22, "carbs": 10, "cal": 250},
+    "fried dumpling":    {"fat": 8,  "protein": 9,  "carbs": 25, "cal": 210},
+    "chicken":           {"fat": 7,  "protein": 27, "carbs": 0,  "cal": 165},
+    "salad":             {"fat": 5,  "protein": 2,  "carbs": 5,  "cal": 70},
+    "steak":             {"fat": 15, "protein": 26, "carbs": 0,  "cal": 240},
+    "salmon":            {"fat": 13, "protein": 20, "carbs": 0,  "cal": 200},
+    "soup":              {"fat": 3,  "protein": 4,  "carbs": 6,  "cal": 65},
+    "rice":              {"fat": 1,  "protein": 3,  "carbs": 28, "cal": 130},
+    "pasta":             {"fat": 2,  "protein": 5,  "carbs": 30, "cal": 157},
+    "bread":             {"fat": 3,  "protein": 8,  "carbs": 50, "cal": 265},
+    "avocado":           {"fat": 15, "protein": 2,  "carbs": 9,  "cal": 160},
+    "bacon":             {"fat": 42, "protein": 12, "carbs": 0,  "cal": 417},
+    "cheese":            {"fat": 25, "protein": 20, "carbs": 2,  "cal": 300},
+    "yogurt":            {"fat": 3,  "protein": 5,  "carbs": 7,  "cal": 60},
+    "beef":              {"fat": 15, "protein": 26, "carbs": 0,  "cal": 250},
+    "pork":              {"fat": 21, "protein": 20, "carbs": 0,  "cal": 270},
+    "shrimp":            {"fat": 1,  "protein": 20, "carbs": 1,  "cal": 99},
+    "omelette":          {"fat": 11, "protein": 10, "carbs": 1,  "cal": 145},
+    "pancake":           {"fat": 5,  "protein": 5,  "carbs": 30, "cal": 185},
+    "sandwich":          {"fat": 10, "protein": 10, "carbs": 30, "cal": 250},
+    "pizza":             {"fat": 10, "protein": 11, "carbs": 33, "cal": 266},
+    "burger":            {"fat": 16, "protein": 15, "carbs": 24, "cal": 295},
+    "sushi":             {"fat": 3,  "protein": 8,  "carbs": 20, "cal": 140},
+    "noodle":            {"fat": 2,  "protein": 5,  "carbs": 25, "cal": 138},
+    "curry":             {"fat": 8,  "protein": 12, "carbs": 10, "cal": 160},
+}
+
+def get_fallback_macros(dish_names):
+    """Ищем макросы по ключевым словам в названии блюда"""
+    fat = protein = carbs = cal = 0
+    found = 0
+    for dish in dish_names:
+        dish_lower = dish.lower()
+        for key, macros in FALLBACK_MACROS.items():
+            if key in dish_lower:
+                fat     += macros["fat"]
+                protein += macros["protein"]
+                carbs   += macros["carbs"]
+                cal     += macros["cal"]
+                found   += 1
+                break
+    if found == 0:
+        return None
+    return {"fat": round(fat/found,1), "protein": round(protein/found,1),
+            "carbs": round(carbs/found,1), "cal": round(cal/found)}
     try:
         headers = {"Authorization": f"Bearer {LOGMEAL_TOKEN}"}
         files = {"image": ("food.jpg", image_bytes, "image/jpeg")}
@@ -259,6 +311,17 @@ def analyze_photo(image_bytes):
                     protein  += float(n.get("proteins", 0) or 0)
                     carbs    += float(n.get("totalCarbs", 0) or 0)
                     calories += float(n.get("calories", 0) or 0)
+
+        # Вариант 3: если всё ещё 0 — используем резервную базу
+        if fat == 0 and protein == 0 and carbs == 0:
+            fallback = get_fallback_macros(dish_names)
+            if fallback:
+                fat     = fallback["fat"]
+                protein = fallback["protein"]
+                carbs   = fallback["carbs"]
+                if calories == 0:
+                    calories = fallback["cal"]
+                print(f"Using fallback macros: {fallback}")
 
         return {
             "dishes":   dish_names if dish_names else ["Блюдо"],
@@ -838,9 +901,14 @@ def handle_all(msg):
                 f"Текущие значения:\n"
                 f"🟠 Жиры: {food['fat']}г | 🔵 Белки: {food['protein']}г\n"
                 f"🟡 Углеводы: {food['carbs']}г | 🔥 {food['calories']} ккал\n\n"
-                f"Введи исправленные:\n*Название, жиры, белки, углеводы*\n\n"
-                f"Пример: `Рыба с овощами, 12, 25, 8`",
-                parse_mode="Markdown")
+                f"Введи название и три числа через пробел:\n"
+                f"*название жиры белки углеводы*\n\n"
+                f"Примеры:\n"
+                f"`яйцо варёное 7 6 0`\n"
+                f"`рыба с овощами 12 25 8`\n"
+                f"`куриный суп 300г 4 15 5`\n\n"
+                f"Или нажми *❌ Отмена*",
+                parse_mode="Markdown", reply_markup=confirm_photo_kb())
             return
         if text == "❌ Отмена":
             u["pending_food"] = None
@@ -849,12 +917,29 @@ def handle_all(msg):
             return
 
     if state == "correct_photo":
+        if text == "❌ Отмена":
+            u["pending_food"] = None
+            set_state(uid, "menu")
+            bot.send_message(msg.chat.id, "Отменено.", reply_markup=main_kb())
+            return
         try:
-            parts = text.split(",")
-            name    = parts[0].strip()
-            fat     = int(parts[1].strip())
-            protein = int(parts[2].strip())
-            carbs   = int(parts[3].strip())
+            import re
+            parts = text.strip().split()
+            numbers = []
+            name_parts = []
+            for part in parts:
+                clean = re.sub(r'[гГмлМ,]+$', '', part)
+                if clean.replace('.','').isdigit():
+                    numbers.append(int(float(clean)))
+                else:
+                    name_parts.append(part)
+            if len(numbers) < 3:
+                raise ValueError("need 3 numbers")
+            name    = " ".join(name_parts) if name_parts else "Блюдо"
+            name    = name[0].upper() + name[1:] if name else "Блюдо"
+            fat     = numbers[0]
+            protein = numbers[1]
+            carbs   = numbers[2]
             cal = fat * 9 + protein * 4 + carbs * 4
             u["fat"] += fat; u["protein"] += protein
             u["carbs"] += carbs; u["calories"] += cal
@@ -867,7 +952,10 @@ def handle_all(msg):
                 parse_mode="Markdown", reply_markup=main_kb())
         except:
             bot.send_message(msg.chat.id,
-                "❌ Пример: `Рыба с овощами, 12, 25, 8`",
+                "❌ Напиши название и три числа через пробел:\n\n"
+                "`яйцо варёное 7 6 0`\n"
+                "`рыба с овощами 12 25 8`\n\n"
+                "Или нажми *❌ Отмена*",
                 parse_mode="Markdown")
         return
 
