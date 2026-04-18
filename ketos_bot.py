@@ -322,13 +322,22 @@ def get_fallback_macros(dish_names):
                 if calories == 0:
                     calories = fallback["cal"]
                 print(f"Using fallback macros: {fallback}")
+                return {
+                    "dishes":        dish_names if dish_names else ["Блюдо"],
+                    "calories":      round(calories),
+                    "fat":           round(fat, 1),
+                    "protein":       round(protein, 1),
+                    "carbs":         round(carbs, 1),
+                    "from_fallback": True,
+                }
 
         return {
-            "dishes":   dish_names if dish_names else ["Блюдо"],
-            "calories": round(calories),
-            "fat":      round(fat, 1),
-            "protein":  round(protein, 1),
-            "carbs":    round(carbs, 1),
+            "dishes":        dish_names if dish_names else ["Блюдо"],
+            "calories":      round(calories),
+            "fat":           round(fat, 1),
+            "protein":       round(protein, 1),
+            "carbs":         round(carbs, 1),
+            "from_fallback": False,
         }
     except Exception as e:
         print(f"LogMeal error: {e}")
@@ -445,33 +454,53 @@ def handle_photo(msg):
     uid = msg.from_user.id
     u = get_user(uid)
     bot.send_message(msg.chat.id,
-        "📸 *Фото получено!*\n🤖 Анализирую блюдо... ⏳",
+        "📸 *Фото получено!*\n🤖 Анализирую блюдо... ⏳\n_(обычно 10-20 секунд)_",
         parse_mode="Markdown")
     file_info = bot.get_file(msg.photo[-1].file_id)
     image_bytes = requests.get(
-        f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}").content
-    result = analyze_photo(image_bytes)
-    if not result or result["calories"] == 0:
-        bot.send_message(msg.chat.id,
-            "❌ Не удалось распознать блюдо.\n\n"
-            "Попробуй:\n• Сфотографировать ближе\n"
-            "• Улучшить освещение\n• Или введи вручную 👇",
-            reply_markup=food_kb())
-        set_state(uid, "food")
-        return
-    u["pending_food"] = result
-    set_state(uid, "confirm_photo")
-    dishes_text = ", ".join(result["dishes"][:3])
-    warn = "⚠️ Много углеводов!" if result["carbs"] > 10 else "✅ Кето-дружественно"
-    bot.send_message(msg.chat.id,
-        f"🤖 *Результат анализа:*\n\n"
-        f"🍽 *Блюдо:* {dishes_text}\n\n"
-        f"🔥 Калории: *{result['calories']} ккал*\n"
-        f"🟠 Жиры: *{result['fat']}г*\n"
-        f"🔵 Белки: *{result['protein']}г*\n"
-        f"🟡 Углеводы: *{result['carbs']}г*\n\n"
-        f"{warn}\n\nВсё верно?",
-        parse_mode="Markdown", reply_markup=confirm_photo_kb())
+        f"https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}",
+        timeout=10).content
+
+    import threading
+
+    def do_analysis():
+        try:
+            result = analyze_photo(image_bytes)
+            if not result or (result["calories"] == 0 and result["fat"] == 0 and result["protein"] == 0):
+                bot.send_message(msg.chat.id,
+                    "❌ Не удалось распознать блюдо.\n\n"
+                    "Попробуй:\n• Сфотографировать ближе\n"
+                    "• Улучшить освещение\n"
+                    "• Или нажми *✏️ Ввести еду вручную*",
+                    parse_mode="Markdown", reply_markup=main_kb())
+                set_state(uid, "menu")
+                return
+            u["pending_food"] = result
+            set_state(uid, "confirm_photo")
+            dishes_text = ", ".join(result["dishes"][:3])
+            warn = "⚠️ Много углеводов!" if result["carbs"] > 10 else "✅ Кето-дружественно"
+            note = ""
+            if result.get("from_fallback"):
+                note = "\n\n_⚠️ Макросы примерные — рекомендую скорректировать_"
+            bot.send_message(msg.chat.id,
+                f"🤖 *Результат анализа:*\n\n"
+                f"🍽 *Блюдо:* {dishes_text}\n\n"
+                f"🔥 Калории: *{result['calories']} ккал*\n"
+                f"🟠 Жиры: *{result['fat']}г*\n"
+                f"🔵 Белки: *{result['protein']}г*\n"
+                f"🟡 Углеводы: *{result['carbs']}г*\n\n"
+                f"{warn}{note}\n\nВсё верно?",
+                parse_mode="Markdown", reply_markup=confirm_photo_kb())
+        except Exception as e:
+            print(f"Photo thread error: {e}")
+            bot.send_message(msg.chat.id,
+                "❌ Ошибка анализа. Попробуй ещё раз или введи вручную.",
+                reply_markup=main_kb())
+            set_state(uid, "menu")
+
+    t = threading.Thread(target=do_analysis)
+    t.daemon = True
+    t.start()
 
 # ============================================================
 # MAIN HANDLER
