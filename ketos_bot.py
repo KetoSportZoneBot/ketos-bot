@@ -28,6 +28,7 @@ def get_user(uid):
             "pending_food": None,
             "pending_alcohol": None,
             "pending_search_food": None,
+            "lang": "ru",
         }
     return users[uid]
 
@@ -63,6 +64,111 @@ def apply_keto_level(u, level):
     u["keto_level"] = level
 
 # ============================================================
+# LANGUAGE SYSTEM
+# ============================================================
+
+def t(u, ru, en):
+    """Return text in user's language"""
+    return en if u.get("lang") == "en" else ru
+
+def lang_kb():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("🇷🇺 Русский", "🇬🇧 English")
+    return kb
+
+# ============================================================
+# AI ADVISOR
+# ============================================================
+
+# Food suggestions database (per 100g)
+FOOD_SUGGESTIONS = [
+    {"name": {"ru": "Авокадо (200г)",       "en": "Avocado (200g)"},      "fat": 21, "protein": 2,  "carbs": 2,  "cal": 200},
+    {"name": {"ru": "Стейк говяжий (150г)", "en": "Beef steak (150g)"},   "fat": 14, "protein": 23, "carbs": 0,  "cal": 210},
+    {"name": {"ru": "Лосось (150г)",         "en": "Salmon (150g)"},       "fat": 14, "protein": 28, "carbs": 0,  "cal": 240},
+    {"name": {"ru": "Яйца варёные (2шт)",    "en": "Boiled eggs (2pc)"},   "fat": 10, "protein": 12, "carbs": 1,  "cal": 140},
+    {"name": {"ru": "Сыр твёрдый (50г)",     "en": "Hard cheese (50g)"},   "fat": 14, "protein": 12, "carbs": 0,  "cal": 180},
+    {"name": {"ru": "Миндаль (30г)",          "en": "Almonds (30g)"},       "fat": 15, "protein": 6,  "carbs": 3,  "cal": 170},
+    {"name": {"ru": "Бекон (3 полоски)",      "en": "Bacon (3 strips)"},    "fat": 12, "protein": 9,  "carbs": 0,  "cal": 140},
+    {"name": {"ru": "Куриная грудка (150г)", "en": "Chicken breast (150g)"},"fat": 4, "protein": 35, "carbs": 0,  "cal": 165},
+    {"name": {"ru": "Творог 5% (150г)",      "en": "Cottage cheese (150g)"},"fat": 8, "protein": 18, "carbs": 3,  "cal": 155},
+    {"name": {"ru": "Тунец в масле (100г)",  "en": "Tuna in oil (100g)"},  "fat": 10, "protein": 26, "carbs": 0,  "cal": 200},
+    {"name": {"ru": "Грецкие орехи (30г)",   "en": "Walnuts (30g)"},       "fat": 20, "protein": 5,  "carbs": 4,  "cal": 196},
+    {"name": {"ru": "Брокколи+масло (200г)", "en": "Broccoli+oil (200g)"}, "fat": 10, "protein": 5,  "carbs": 8,  "cal": 148},
+    {"name": {"ru": "Сметана 20% (50г)",     "en": "Sour cream 20% (50g)"},"fat": 10, "protein": 2,  "carbs": 2,  "cal": 105},
+    {"name": {"ru": "Семечки тыквы (30г)",   "en": "Pumpkin seeds (30g)"}, "fat": 15, "protein": 9,  "carbs": 3,  "cal": 168},
+]
+
+def ai_advisor(u):
+    """Suggest foods to fill remaining macros"""
+    lang = u.get("lang", "ru")
+
+    fat_left    = max(0, u["fat_target"]    - u["fat"])
+    protein_left= max(0, u["protein_target"]- u["protein"])
+    carbs_left  = max(0, u["carbs_target"]  - u["carbs"])
+    cal_left    = max(0, u["cal_target"]    - u["calories"])
+
+    if lang == "en":
+        if cal_left <= 0:
+            return "✅ You've reached your daily calorie goal! Great job today 💪"
+        header = (
+            f"🤖 *AI Advisor*\n\n"
+            f"*Remaining today:*\n"
+            f"🔥 Calories: {cal_left} kcal\n"
+            f"🟠 Fat: {fat_left}g\n"
+            f"🔵 Protein: {protein_left}g\n"
+            f"🟡 Carbs: {carbs_left}g\n\n"
+            f"*Recommendations:*\n"
+        )
+    else:
+        if cal_left <= 0:
+            return "✅ Ты достиг дневной нормы калорий! Отличная работа 💪"
+        header = (
+            f"🤖 *ИИ Советник*\n\n"
+            f"*Осталось на сегодня:*\n"
+            f"🔥 Калорий: {cal_left} ккал\n"
+            f"🟠 Жиров: {fat_left}г\n"
+            f"🔵 Белков: {protein_left}г\n"
+            f"🟡 Углеводов: {carbs_left}г\n\n"
+            f"*Рекомендации:*\n"
+        )
+
+    # Score each food by how well it fills the gaps
+    scored = []
+    for food in FOOD_SUGGESTIONS:
+        score = 0
+        if fat_left > 10 and food["fat"] > 5:    score += food["fat"] * 2
+        if protein_left > 10 and food["protein"] > 8: score += food["protein"] * 3
+        if food["carbs"] <= carbs_left:           score += 10
+        else:                                      score -= 50
+        if food["cal"] <= cal_left:               score += 5
+        scored.append((score, food))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top = [f for s, f in scored if s > 0][:3]
+
+    if not top:
+        return header + ("No suitable options found — you're almost at your goal!" if lang=="en" else "Подходящих вариантов нет — ты почти у цели!")
+
+    result = header
+    for i, food in enumerate(top, 1):
+        name = food["name"]["en"] if lang=="en" else food["name"]["ru"]
+        kcal_word = "kcal" if lang=="en" else "ккал"
+        result += (
+            f"\n*{i}.* {name}\n"
+            f"   🟠{food['fat']}г 🔵{food['protein']}г 🟡{food['carbs']}г 🔥{food['cal']}{kcal_word}\n"
+        )
+
+    # Add tip
+    if protein_left > fat_left * 2:
+        tip = "💡 Focus on protein today — chicken or fish!" if lang=="en" else "💡 Сегодня упор на белок — курица или рыба!"
+    elif fat_left > 30:
+        tip = "💡 Add healthy fats — avocado or nuts!" if lang=="en" else "💡 Добавь полезные жиры — авокадо или орехи!"
+    else:
+        tip = "💡 You're on track — keep it up!" if lang=="en" else "💡 Ты на правильном пути — продолжай!"
+
+    return result + f"\n{tip}"
+
+# ============================================================
 # KEYBOARDS
 # ============================================================
 
@@ -72,6 +178,7 @@ def main_kb():
     kb.row("📸 КБЖУ по фото", "✏️ Ввести еду вручную")
     kb.row("🔍 Поиск продукта", "⚡ Спортивный режим")
     kb.row("🍷 Выпил алкоголь", "🧪 Ввести кетоны")
+    kb.row("🤖 ИИ Советник / AI Adviser")
     kb.row("👨‍👩‍👧 Семья", "⚙️ Настройки")
     kb.row("🔄 Перезапуск")
     return kb
@@ -481,10 +588,12 @@ def handle_photo(msg):
 @bot.message_handler(commands=["start"])
 def cmd_start(msg):
     uid = msg.from_user.id
-    set_state(uid, "ask_name")
+    set_state(uid, "ask_lang")
     bot.send_message(msg.chat.id,
-        "🔥 *Добро пожаловать в KetOS!*\n\nКето-диета для спортсменов 💪\n\nКак тебя зовут?",
-        parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
+        "🔥 *KetOS* — Keto diet for athletes 💪\n\n"
+        "Choose your language / Выбери язык:",
+        parse_mode="Markdown",
+        reply_markup=lang_kb())
 
 @bot.message_handler(func=lambda m: True)
 def handle_all(msg):
@@ -498,105 +607,174 @@ def handle_all(msg):
         bot.send_message(msg.chat.id, "✅ Главное меню:", reply_markup=main_kb())
         return
 
+    # ======================== ЯЗЫК ========================
+    if state == "ask_lang" or text in ["🇷🇺 Русский", "🇬🇧 English"]:
+        if text == "🇬🇧 English":
+            u["lang"] = "en"
+            set_state(uid, "ask_name")
+            bot.send_message(msg.chat.id,
+                "🔥 *Welcome to KetOS!*\n\nKeto diet for athletes 💪\n\nWhat's your name?",
+                parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
+        else:
+            u["lang"] = "ru"
+            set_state(uid, "ask_name")
+            bot.send_message(msg.chat.id,
+                "🔥 *Добро пожаловать в KetOS!*\n\nКето-диета для спортсменов 💪\n\nКак тебя зовут?",
+                parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
+        return
+
+    # ======================== AI СОВЕТНИК ========================
+    if text == "🤖 ИИ Советник / AI Adviser":
+        advice = ai_advisor(u)
+        bot.send_message(msg.chat.id, advice, parse_mode="Markdown", reply_markup=main_kb())
+        return
+
     # ======================== ОНБОРДИНГ ========================
     if state == "ask_name":
         u["name"] = text
         set_state(uid, "ask_weight")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("50", "55", "60", "65"); kb.row("70", "75", "80", "85"); kb.row("90", "95", "100", "110")
-        bot.send_message(msg.chat.id, f"Привет, *{text}*! 💪\nВведи свой вес в кг:", parse_mode="Markdown", reply_markup=kb)
+        kb.row("50","55","60","65"); kb.row("70","75","80","85"); kb.row("90","95","100","110")
+        bot.send_message(msg.chat.id,
+            t(u, f"Привет, *{text}*! 💪\nВведи свой вес в кг:",
+                 f"Hi, *{text}*! 💪\nEnter your weight in kg:"),
+            parse_mode="Markdown", reply_markup=kb)
         return
 
     if state == "ask_weight":
         try:
-            u["weight"] = float(text.replace("кг","").strip()); set_state(uid, "ask_height")
+            u["weight"] = float(text.replace("кг","").replace("kg","").strip())
+            set_state(uid, "ask_height")
             kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
             kb.row("155","160","165","170"); kb.row("175","180","185","190")
-            bot.send_message(msg.chat.id, "Твой рост в см:", reply_markup=kb)
+            bot.send_message(msg.chat.id, t(u,"Твой рост в см:","Your height in cm:"), reply_markup=kb)
         except:
-            bot.send_message(msg.chat.id, "Введи число, например: *65*", parse_mode="Markdown")
+            bot.send_message(msg.chat.id, t(u,"Введи число, например: *65*","Enter a number, e.g.: *65*"), parse_mode="Markdown")
         return
 
     if state == "ask_height":
         try:
-            u["height"] = float(text.replace("см","").strip()); set_state(uid, "ask_age")
+            u["height"] = float(text.replace("см","").replace("cm","").strip())
+            set_state(uid, "ask_age")
             kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
             kb.row("20","25","30","35"); kb.row("40","45","50","55")
-            bot.send_message(msg.chat.id, "Твой возраст:", reply_markup=kb)
+            bot.send_message(msg.chat.id, t(u,"Твой возраст:","Your age:"), reply_markup=kb)
         except:
-            bot.send_message(msg.chat.id, "Введи число, например: *170*", parse_mode="Markdown")
+            bot.send_message(msg.chat.id, t(u,"Введи число, например: *170*","Enter a number, e.g.: *170*"), parse_mode="Markdown")
         return
 
     if state == "ask_age":
         try:
-            u["age"] = float(text.replace("лет","").strip()); set_state(uid, "ask_activity")
-            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            kb.row("🛋 Минимум (сидячий)"); kb.row("🚶 Лёгкая (1-3 раза/нед)")
-            kb.row("🏃 Умеренная (3-5 раз/нед)"); kb.row("💪 Высокая (6-7 раз/нед)")
-            kb.row("🏆 Очень высокая (проф. спорт)")
-            bot.send_message(msg.chat.id, "Уровень физической активности:", reply_markup=kb)
+            u["age"] = float(text.replace("лет","").strip())
+            set_state(uid, "ask_activity")
+            if u.get("lang") == "en":
+                kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                kb.row("🛋 Sedentary"); kb.row("🚶 Light (1-3x/week)")
+                kb.row("🏃 Moderate (3-5x/week)"); kb.row("💪 High (6-7x/week)")
+                kb.row("🏆 Very high (pro sport)")
+                bot.send_message(msg.chat.id, "Physical activity level:", reply_markup=kb)
+            else:
+                kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                kb.row("🛋 Минимум (сидячий)"); kb.row("🚶 Лёгкая (1-3 раза/нед)")
+                kb.row("🏃 Умеренная (3-5 раз/нед)"); kb.row("💪 Высокая (6-7 раз/нед)")
+                kb.row("🏆 Очень высокая (проф. спорт)")
+                bot.send_message(msg.chat.id, "Уровень физической активности:", reply_markup=kb)
         except:
-            bot.send_message(msg.chat.id, "Введи число, например: *30*", parse_mode="Markdown")
+            bot.send_message(msg.chat.id, t(u,"Введи число, например: *30*","Enter a number, e.g.: *30*"), parse_mode="Markdown")
         return
 
     if state == "ask_activity":
-        coef = {"🛋 Минимум (сидячий)":1.2,"🚶 Лёгкая (1-3 раза/нед)":1.375,
-                "🏃 Умеренная (3-5 раз/нед)":1.55,"💪 Высокая (6-7 раз/нед)":1.725,
-                "🏆 Очень высокая (проф. спорт)":1.9}
+        coef = {
+            "🛋 Минимум (сидячий)":1.2, "🛋 Sedentary":1.2,
+            "🚶 Лёгкая (1-3 раза/нед)":1.375, "🚶 Light (1-3x/week)":1.375,
+            "🏃 Умеренная (3-5 раз/нед)":1.55, "🏃 Moderate (3-5x/week)":1.55,
+            "💪 Высокая (6-7 раз/нед)":1.725, "💪 High (6-7x/week)":1.725,
+            "🏆 Очень высокая (проф. спорт)":1.9, "🏆 Very high (pro sport)":1.9,
+        }
         u["activity"] = text; u["activity_coef"] = coef.get(text, 1.55)
         set_state(uid, "ask_sport")
-        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("🏃 Бег/Трейл","🚴 Велоспорт"); kb.row("🏊 Плавание","🏋️ Силовые")
-        kb.row("⛷️ Лыжи/Триатлон","🚶 Другое")
-        bot.send_message(msg.chat.id, "Основной вид спорта:", reply_markup=kb)
+        if u.get("lang") == "en":
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row("🏃 Running/Trail","🚴 Cycling")
+            kb.row("🏊 Swimming","🏋️ Strength")
+            kb.row("⛷️ Skiing/Triathlon","🚶 Other")
+            bot.send_message(msg.chat.id, "Main sport:", reply_markup=kb)
+        else:
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row("🏃 Бег/Трейл","🚴 Велоспорт"); kb.row("🏊 Плавание","🏋️ Силовые")
+            kb.row("⛷️ Лыжи/Триатлон","🚶 Другое")
+            bot.send_message(msg.chat.id, "Основной вид спорта:", reply_markup=kb)
         return
 
     if state == "ask_sport":
         u["sport_type"] = text; set_state(uid, "ask_goal")
-        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("🔥 Похудение","💪 Набор мышц"); kb.row("⚡ Производительность","🎯 Поддержание")
-        bot.send_message(msg.chat.id, "Главная цель:", reply_markup=kb)
+        if u.get("lang") == "en":
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row("🔥 Weight loss","💪 Muscle gain"); kb.row("⚡ Performance","🎯 Maintenance")
+            bot.send_message(msg.chat.id, "Main goal:", reply_markup=kb)
+        else:
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row("🔥 Похудение","💪 Набор мышц"); kb.row("⚡ Производительность","🎯 Поддержание")
+            bot.send_message(msg.chat.id, "Главная цель:", reply_markup=kb)
         return
 
     if state == "ask_goal":
         u["goal"] = text
         macros = calc_macros(u); u["cal_target"] = macros["calories"]
         set_state(uid, "ask_keto_level")
-        bot.send_message(msg.chat.id,
-            f"Рассчитанные калории: *{macros['calories']} ккал/день*\n\n"
-            f"Выбери режим питания:\n\n"
-            f"🔴 *Строгое кето* — до 20г углеводов (Ж75% Б20% У5%)\n"
-            f"🟡 *Нормальное кето* — до 30г углеводов (Ж70% Б25% У5%)\n"
-            f"🟢 *Низкоуглеводная* — до 80г углеводов (Ж50% Б30% У20%)\n"
-            f"✏️ *Ручной ввод* — задашь сам",
-            parse_mode="Markdown", reply_markup=keto_level_kb())
+        if u.get("lang") == "en":
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row("🔴 Strict keto"); kb.row("🟡 Standard keto")
+            kb.row("🟢 Low-carb diet"); kb.row("✏️ Manual input")
+            bot.send_message(msg.chat.id,
+                f"Calculated calories: *{macros['calories']} kcal/day*\n\n"
+                f"Choose diet mode:\n\n"
+                f"🔴 *Strict keto* — up to 20g carbs\n"
+                f"🟡 *Standard keto* — up to 30g carbs\n"
+                f"🟢 *Low-carb* — up to 80g carbs\n"
+                f"✏️ *Manual* — set your own",
+                parse_mode="Markdown", reply_markup=kb)
+        else:
+            bot.send_message(msg.chat.id,
+                f"Рассчитанные калории: *{macros['calories']} ккал/день*\n\n"
+                f"Выбери режим питания:\n\n"
+                f"🔴 *Строгое кето* — до 20г углеводов\n"
+                f"🟡 *Нормальное кето* — до 30г углеводов\n"
+                f"🟢 *Низкоуглеводная* — до 80г углеводов\n"
+                f"✏️ *Ручной ввод* — задашь сам",
+                parse_mode="Markdown", reply_markup=keto_level_kb())
         return
 
     if state == "ask_keto_level":
-        if text == "✏️ Ручной ввод":
+        level_map = {
+            "🔴 Strict keto": "🔴 Строгое кето",
+            "🟡 Standard keto": "🟡 Нормальное кето",
+            "🟢 Low-carb diet": "🟢 Низкоуглеводная диета",
+        }
+        mapped = level_map.get(text, text)
+        if text in ["✏️ Ручной ввод", "✏️ Manual input"]:
             set_state(uid, "manual_targets_onboard")
             macros = calc_macros(u)
             bot.send_message(msg.chat.id,
-                f"Расчётные калории: *{macros['calories']} ккал*\n\n"
-                f"Введи через пробел:\n*калории жиры белки углеводы*\n\nПример: `1800 140 110 20`",
+                t(u, f"Расчётные калории: *{macros['calories']} ккал*\n\nВведи через пробел:\n*калории жиры белки углеводы*\n\nПример: `1800 140 110 20`",
+                     f"Calculated: *{macros['calories']} kcal*\n\nEnter separated by spaces:\n*calories fat protein carbs*\n\nExample: `1800 140 110 20`"),
                 parse_mode="Markdown")
             return
-        if text in ["🔴 Строгое кето","🟡 Нормальное кето","🟢 Низкоуглеводная диета"]:
-            apply_keto_level(u, text)
+        if mapped in ["🔴 Строгое кето","🟡 Нормальное кето","🟢 Низкоуглеводная диета"]:
+            apply_keto_level(u, mapped)
             macros = calc_macros(u); set_state(uid, "menu")
             bot.send_message(msg.chat.id, profile_done_text(u, macros), parse_mode="Markdown", reply_markup=main_kb())
         return
 
     if state == "manual_targets_onboard":
         try:
-            parts = text.split()
-            nums = [int(p) for p in parts if p.isdigit()]
+            parts = text.split(); nums = [int(p) for p in parts if p.isdigit()]
             u["cal_target"]=nums[0]; u["fat_target"]=nums[1]; u["protein_target"]=nums[2]; u["carbs_target"]=nums[3]
             u["keto_level"]="✏️ Ручной ввод"; set_state(uid, "menu")
             macros = {"tdee": u["cal_target"]}
             bot.send_message(msg.chat.id, profile_done_text(u, macros), parse_mode="Markdown", reply_markup=main_kb())
         except:
-            bot.send_message(msg.chat.id, "❌ Пример: `1800 140 110 20`", parse_mode="Markdown")
+            bot.send_message(msg.chat.id, t(u,"❌ Пример: `1800 140 110 20`","❌ Example: `1800 140 110 20`"), parse_mode="Markdown")
         return
 
     # ======================== СТАТУС ========================
