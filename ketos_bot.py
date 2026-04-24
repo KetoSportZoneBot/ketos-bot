@@ -751,20 +751,15 @@ def handle_all(msg):
         u["name"] = text
         set_state(uid, "ask_gender")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        if u.get("lang") == "en":
-            kb.row("👩 Female", "👨 Male")
-            bot.send_message(msg.chat.id,
-                f"Hi, *{text}*! 💪\nYour gender?",
-                parse_mode="Markdown", reply_markup=kb)
-        else:
-            kb.row("👩 Женский", "👨 Мужской")
-            bot.send_message(msg.chat.id,
-                f"Привет, *{text}*! 💪\nТвой пол?",
-                parse_mode="Markdown", reply_markup=kb)
+        kb.row("♀️ Женский / Female", "♂️ Мужской / Male")
+        bot.send_message(msg.chat.id,
+            t(u, f"Привет, *{text}*! 💪\nТвой пол?",
+                 f"Hi, *{text}*! 💪\nYour gender?"),
+            parse_mode="Markdown", reply_markup=kb)
         return
 
     if state == "ask_gender":
-        if text in ["👨 Мужской", "👨 Male"]:
+        if "Мужской" in text or "Male" in text or "♂️" in text:
             u["gender"] = "male"
         else:
             u["gender"] = "female"
@@ -1255,9 +1250,9 @@ def handle_all(msg):
     if text == "👤 Изменить пол / Change gender":
         set_state(uid, "change_gender")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        kb.row("👩 Женский / Female", "👨 Мужской / Male")
+        kb.row("♀️ Женский / Female", "♂️ Мужской / Male")
         kb.row("◀️ Главное меню")
-        gender_now = "👩 Женский" if u.get("gender","female") == "female" else "👨 Мужской"
+        gender_now = "♀️ Женский" if u.get("gender","female") == "female" else "♂️ Мужской"
         bot.send_message(msg.chat.id,
             t(u,
               f"Текущий пол: {gender_now}\n\nВыбери новый:",
@@ -1266,12 +1261,12 @@ def handle_all(msg):
         return
 
     if state == "change_gender":
-        if "Мужской" in text or "Male" in text:
+        if "Мужской" in text or "Male" in text or "♂️" in text:
             u["gender"] = "male"
-            icon = "👨"
+            icon = "♂️"
         else:
             u["gender"] = "female"
-            icon = "👩"
+            icon = "♀️"
         macros = calc_macros(u)
         u["cal_target"]     = macros["calories"]
         u["fat_target"]     = macros["fat"]
