@@ -16,6 +16,7 @@ def get_user(uid):
     if uid not in users:
         users[uid] = {
             "name": "", "weight": 70, "height": 170, "age": 30,
+            "gender": "female",
             "goal": "", "activity": "", "activity_coef": 1.55,
             "keto_level": "🟡 Нормальное кето", "sport_type": "",
             "ketones": 0.0,
@@ -47,21 +48,59 @@ def calc_macros(u):
     h = float(u.get("height", 170))
     a = float(u.get("age", 30))
     coef = float(u.get("activity_coef", 1.55))
-    bmr = 10 * w + 6.25 * h - 5 * a - 161
+    gender = u.get("gender", "female")
+
+    # Mifflin-St Jeor — золотой стандарт
+    if gender == "male":
+        bmr = 10 * w + 6.25 * h - 5 * a + 5
+    else:
+        bmr = 10 * w + 6.25 * h - 5 * a - 161
+
+    # TDEE = BMR × коэффициент активности
     tdee = round(bmr * coef)
+
+    # Калории под цель
     goal = u.get("goal", "")
-    cal = tdee - 400 if "Похудение" in goal else tdee + 300 if "Набор" in goal else tdee
-    return {"calories": cal, "fat": round(cal*0.70/9), "protein": round(cal*0.25/4), "carbs": round(cal*0.05/4), "tdee": tdee}
+    if "Похудение" in goal or "Weight loss" in goal:
+        cal = tdee - 500   # дефицит 500 ккал = -0.5 кг/нед
+    elif "Набор" in goal or "Muscle" in goal:
+        cal = tdee + 300   # профицит 300 ккал
+    else:
+        cal = tdee         # поддержание = TDEE
+
+    cal = max(cal, 1200)   # минимум безопасный порог
+
+    # Кето-макросы под выбранный режим
+    level = u.get("keto_level", "🟡 Нормальное кето")
+    if "Строгое" in level or "Strict" in level:
+        fat     = round(cal * 0.75 / 9)
+        protein = round(cal * 0.20 / 4)
+        carbs   = round(cal * 0.05 / 4)
+    elif "Низко" in level or "Low-carb" in level:
+        fat     = round(cal * 0.50 / 9)
+        protein = round(cal * 0.30 / 4)
+        carbs   = round(cal * 0.20 / 4)
+    else:  # Нормальное кето / Standard
+        fat     = round(cal * 0.70 / 9)
+        protein = round(cal * 0.25 / 4)
+        carbs   = round(cal * 0.05 / 4)
+
+    return {
+        "calories": cal,
+        "fat":      fat,
+        "protein":  protein,
+        "carbs":    carbs,
+        "tdee":     tdee,
+        "bmr":      round(bmr),
+    }
 
 def apply_keto_level(u, level):
-    cal = u["cal_target"]
-    if level == "🔴 Строгое кето":
-        u["fat_target"] = round(cal*0.75/9); u["protein_target"] = round(cal*0.20/4); u["carbs_target"] = round(cal*0.05/4)
-    elif level == "🟡 Нормальное кето":
-        u["fat_target"] = round(cal*0.70/9); u["protein_target"] = round(cal*0.25/4); u["carbs_target"] = round(cal*0.05/4)
-    elif level == "🟢 Низкоуглеводная диета":
-        u["fat_target"] = round(cal*0.50/9); u["protein_target"] = round(cal*0.30/4); u["carbs_target"] = round(cal*0.20/4)
     u["keto_level"] = level
+    macros = calc_macros(u)
+    u["cal_target"]     = macros["calories"]
+    u["fat_target"]     = macros["fat"]
+    u["protein_target"] = macros["protein"]
+    u["carbs_target"]   = macros["carbs"]
 
 # ============================================================
 # LANGUAGE SYSTEM
@@ -99,74 +138,115 @@ FOOD_SUGGESTIONS = [
 ]
 
 def ai_advisor(u):
-    """Suggest foods to fill remaining macros"""
     lang = u.get("lang", "ru")
-
-    fat_left    = max(0, u["fat_target"]    - u["fat"])
-    protein_left= max(0, u["protein_target"]- u["protein"])
-    carbs_left  = max(0, u["carbs_target"]  - u["carbs"])
-    cal_left    = max(0, u["cal_target"]    - u["calories"])
+    fat_left     = max(0, u["fat_target"]     - u["fat"])
+    protein_left = max(0, u["protein_target"] - u["protein"])
+    carbs_left   = max(0, u["carbs_target"]   - u["carbs"])
+    cal_left     = max(0, u["cal_target"]      - u["calories"])
 
     if lang == "en":
-        if cal_left <= 0:
-            return "✅ You've reached your daily calorie goal! Great job today 💪"
+        if cal_left <= 50:
+            return "✅ *Daily goal reached!* Great job today 💪\n\nDrink water and get some rest 🌙"
         header = (
-            f"🤖 *AI Advisor*\n\n"
-            f"*Remaining today:*\n"
-            f"🔥 Calories: {cal_left} kcal\n"
-            f"🟠 Fat: {fat_left}g\n"
-            f"🔵 Protein: {protein_left}g\n"
-            f"🟡 Carbs: {carbs_left}g\n\n"
-            f"*Recommendations:*\n"
+            f"🤖 *AI Adviser — Meal Plan*\n\n"
+            f"*Remaining:*\n"
+            f"🔥 {cal_left} kcal | 🟠 Fat: {fat_left}g | 🔵 Protein: {protein_left}g | 🟡 Carbs: {carbs_left}g\n\n"
+            f"*Suggested meal plan for the rest of the day:*\n"
         )
     else:
-        if cal_left <= 0:
-            return "✅ Ты достиг дневной нормы калорий! Отличная работа 💪"
+        if cal_left <= 50:
+            return "✅ *Дневная норма выполнена!* Отличная работа 💪\n\nПей воду и отдыхай 🌙"
         header = (
-            f"🤖 *ИИ Советник*\n\n"
-            f"*Осталось на сегодня:*\n"
-            f"🔥 Калорий: {cal_left} ккал\n"
-            f"🟠 Жиров: {fat_left}г\n"
-            f"🔵 Белков: {protein_left}г\n"
-            f"🟡 Углеводов: {carbs_left}г\n\n"
-            f"*Рекомендации:*\n"
+            f"🤖 *ИИ Советник — Рацион*\n\n"
+            f"*Осталось:*\n"
+            f"🔥 {cal_left} ккал | 🟠 Жиры: {fat_left}г | 🔵 Белки: {protein_left}г | 🟡 Углеводы: {carbs_left}г\n\n"
+            f"*Рекомендуемый рацион на остаток дня:*\n"
         )
 
-    # Score each food by how well it fills the gaps
-    scored = []
-    for food in FOOD_SUGGESTIONS:
-        score = 0
-        if fat_left > 10 and food["fat"] > 5:    score += food["fat"] * 2
-        if protein_left > 10 and food["protein"] > 8: score += food["protein"] * 3
-        if food["carbs"] <= carbs_left:           score += 10
-        else:                                      score -= 50
-        if food["cal"] <= cal_left:               score += 5
-        scored.append((score, food))
+    # Build meal plan to fill remaining macros
+    remaining_fat = fat_left
+    remaining_protein = protein_left
+    remaining_carbs = carbs_left
+    remaining_cal = cal_left
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top = [f for s, f in scored if s > 0][:3]
+    meal_plan = []
 
-    if not top:
-        return header + ("No suitable options found — you're almost at your goal!" if lang=="en" else "Подходящих вариантов нет — ты почти у цели!")
+    # Priority pool sorted by what's most needed
+    pool = list(FOOD_SUGGESTIONS)
+
+    # Score and pick foods that fill the gaps without exceeding carbs
+    for _ in range(4):  # max 4 items
+        if remaining_cal <= 50:
+            break
+        best_score = -999
+        best_food = None
+        for food in pool:
+            if food in [m[0] for m in meal_plan]:
+                continue
+            # Skip if adds too many carbs
+            if food["carbs"] > remaining_carbs + 3:
+                continue
+            score = 0
+            if remaining_fat > 5:     score += min(food["fat"], remaining_fat) * 2
+            if remaining_protein > 5: score += min(food["protein"], remaining_protein) * 3
+            if food["cal"] <= remaining_cal: score += 5
+            else: score -= 20
+            if best_score < score:
+                best_score = score
+                best_food = food
+        if best_food and best_score > 0:
+            meal_plan.append((best_food, best_score))
+            remaining_fat     -= best_food["fat"]
+            remaining_protein -= best_food["protein"]
+            remaining_carbs   -= best_food["carbs"]
+            remaining_cal     -= best_food["cal"]
+            pool.remove(best_food)
+
+    if not meal_plan:
+        return header + (
+            "No suitable options — you're almost at your goal! 🎯" if lang=="en"
+            else "Подходящих вариантов нет — ты почти у цели! 🎯"
+        )
 
     result = header
-    for i, food in enumerate(top, 1):
+    total_fat = total_prot = total_carbs = total_cal = 0
+    for i, (food, _) in enumerate(meal_plan, 1):
         name = food["name"]["en"] if lang=="en" else food["name"]["ru"]
-        kcal_word = "kcal" if lang=="en" else "ккал"
+        kcal = "kcal" if lang=="en" else "ккал"
+        result += f"\n*{i}.* {name}\n   🟠{food['fat']}г 🔵{food['protein']}г 🟡{food['carbs']}г 🔥{food['cal']}{kcal}\n"
+        total_fat   += food["fat"]
+        total_prot  += food["protein"]
+        total_carbs += food["carbs"]
+        total_cal   += food["cal"]
+
+    if lang == "en":
         result += (
-            f"\n*{i}.* {name}\n"
-            f"   🟠{food['fat']}г 🔵{food['protein']}г 🟡{food['carbs']}г 🔥{food['cal']}{kcal_word}\n"
+            f"\n📊 *Plan total:*\n"
+            f"🔥 {total_cal} kcal | 🟠 {total_fat}g | 🔵 {total_prot}g | 🟡 {total_carbs}g\n\n"
         )
-
-    # Add tip
-    if protein_left > fat_left * 2:
-        tip = "💡 Focus on protein today — chicken or fish!" if lang=="en" else "💡 Сегодня упор на белок — курица или рыба!"
-    elif fat_left > 30:
-        tip = "💡 Add healthy fats — avocado or nuts!" if lang=="en" else "💡 Добавь полезные жиры — авокадо или орехи!"
+        after_fat  = max(0, fat_left - total_fat)
+        after_prot = max(0, protein_left - total_prot)
+        after_carbs= max(0, carbs_left - total_carbs)
+        after_cal  = max(0, cal_left - total_cal)
+        if after_cal <= 100:
+            result += "✅ *Goal will be reached!* 🎯"
+        else:
+            result += f"*Still remaining after plan:*\n🔥{after_cal} kcal | 🟠{after_fat}g | 🔵{after_prot}g | 🟡{after_carbs}g"
     else:
-        tip = "💡 You're on track — keep it up!" if lang=="en" else "💡 Ты на правильном пути — продолжай!"
+        result += (
+            f"\n📊 *Итого по плану:*\n"
+            f"🔥 {total_cal} ккал | 🟠 {total_fat}г | 🔵 {total_prot}г | 🟡 {total_carbs}г\n\n"
+        )
+        after_fat  = max(0, fat_left - total_fat)
+        after_prot = max(0, protein_left - total_prot)
+        after_carbs= max(0, carbs_left - total_carbs)
+        after_cal  = max(0, cal_left - total_cal)
+        if after_cal <= 100:
+            result += "✅ *Норма будет выполнена!* 🎯"
+        else:
+            result += f"*Останется после плана:*\n🔥{after_cal} ккал | 🟠{after_fat}г | 🔵{after_prot}г | 🟡{after_carbs}г"
 
-    return result + f"\n{tip}"
+    return result
 
 # ============================================================
 # KEYBOARDS
@@ -180,7 +260,7 @@ def main_kb():
     kb.row("🍷 Выпил алкоголь", "🧪 Ввести кетоны")
     kb.row("🤖 ИИ Советник / AI Adviser")
     kb.row("👨‍👩‍👧 Семья", "⚙️ Настройки")
-    kb.row("🔄 Перезапуск")
+    kb.row("🌍 Язык / Language", "🔄 Перезапуск")
     return kb
 
 def sport_kb():
@@ -511,17 +591,35 @@ def alcohol_recovery_text(name, ml, carbs):
     )
 
 def profile_done_text(u, macros):
+    gender_icon = "👨" if u.get("gender") == "male" else "👩"
+    lang = u.get("lang", "ru")
+    if lang == "en":
+        return (
+            f"✅ *Profile created!*\n\n"
+            f"{gender_icon} {u['name']} | ⚖️ {u['weight']}kg | 📏 {u['height']}cm | 🎂 {int(u['age'])} y.o.\n"
+            f"🏃 {u.get('sport_type','—')} | 🎯 {u.get('goal','—')}\n"
+            f"🥗 Mode: {u.get('keto_level','—')}\n\n"
+            f"📊 *Daily targets:*\n"
+            f"🔥 Calories: *{macros['calories']} kcal*\n"
+            f"🟠 Fat: *{macros['fat']}g*\n"
+            f"🔵 Protein: *{macros['protein']}g*\n"
+            f"🟡 Carbs: *{macros['carbs']}g*\n\n"
+            f"_BMR: {macros.get('bmr','—')} kcal | TDEE: {macros.get('tdee','—')} kcal_\n\n"
+            f"Let's go! 🚀"
+        )
     return (
         f"✅ *Профиль готов!*\n\n"
-        f"👤 {u['name']} | ⚖️ {u['weight']}кг | 📏 {u['height']}см | 🎂 {int(u['age'])}лет\n"
+        f"{gender_icon} {u['name']} | ⚖️ {u['weight']}кг | 📏 {u['height']}см | 🎂 {int(u['age'])}лет\n"
         f"🏃 {u.get('sport_type','—')} | 🎯 {u.get('goal','—')}\n"
         f"🥗 Режим: {u.get('keto_level','—')}\n\n"
         f"📊 *Цели на день:*\n"
-        f"🔥 Калории: *{u['cal_target']} ккал*\n"
-        f"🟠 Жиры: *{u['fat_target']}г*\n"
-        f"🔵 Белки: *{u['protein_target']}г*\n"
-        f"🟡 Углеводы: *{u['carbs_target']}г*\n\n"
-        f"_TDEE: {macros.get('tdee', u['cal_target'])} ккал_\n\nПоехали! 🚀"
+        f"🔥 Калории: *{macros['calories']} ккал*\n"
+        f"🟠 Жиры: *{macros['fat']}г*\n"
+        f"🔵 Белки: *{macros['protein']}г*\n"
+        f"🟡 Углеводы: *{macros['carbs']}г*\n\n"
+        f"_Базовый обмен (BMR): {macros.get('bmr','—')} ккал_\n"
+        f"_С учётом активности (TDEE): {macros.get('tdee','—')} ккал_\n\n"
+        f"Поехали! 🚀"
     )
 
 # ============================================================
@@ -623,6 +721,24 @@ def handle_all(msg):
                 parse_mode="Markdown", reply_markup=types.ReplyKeyboardRemove())
         return
 
+    # ======================== СМЕНА ЯЗЫКА ========================
+    if text == "🌍 Язык / Language":
+        set_state(uid, "switch_lang")
+        bot.send_message(msg.chat.id,
+            "Choose language / Выбери язык:",
+            reply_markup=lang_kb())
+        return
+
+    if state == "switch_lang":
+        if text == "🇬🇧 English":
+            u["lang"] = "en"
+            bot.send_message(msg.chat.id, "✅ Language changed to English!", reply_markup=main_kb())
+        else:
+            u["lang"] = "ru"
+            bot.send_message(msg.chat.id, "✅ Язык изменён на русский!", reply_markup=main_kb())
+        set_state(uid, "menu")
+        return
+
     # ======================== AI СОВЕТНИК ========================
     if text == "🤖 ИИ Советник / AI Adviser":
         advice = ai_advisor(u)
@@ -632,13 +748,31 @@ def handle_all(msg):
     # ======================== ОНБОРДИНГ ========================
     if state == "ask_name":
         u["name"] = text
+        set_state(uid, "ask_gender")
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        if u.get("lang") == "en":
+            kb.row("👩 Female", "👨 Male")
+            bot.send_message(msg.chat.id,
+                f"Hi, *{text}*! 💪\nYour gender?",
+                parse_mode="Markdown", reply_markup=kb)
+        else:
+            kb.row("👩 Женский", "👨 Мужской")
+            bot.send_message(msg.chat.id,
+                f"Привет, *{text}*! 💪\nТвой пол?",
+                parse_mode="Markdown", reply_markup=kb)
+        return
+
+    if state == "ask_gender":
+        if text in ["👨 Мужской", "👨 Male"]:
+            u["gender"] = "male"
+        else:
+            u["gender"] = "female"
         set_state(uid, "ask_weight")
         kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
         kb.row("50","55","60","65"); kb.row("70","75","80","85"); kb.row("90","95","100","110")
         bot.send_message(msg.chat.id,
-            t(u, f"Привет, *{text}*! 💪\nВведи свой вес в кг:",
-                 f"Hi, *{text}*! 💪\nEnter your weight in kg:"),
-            parse_mode="Markdown", reply_markup=kb)
+            t(u, "Введи свой вес в кг:", "Enter your weight in kg:"),
+            reply_markup=kb)
         return
 
     if state == "ask_weight":
@@ -1116,19 +1250,35 @@ def handle_all(msg):
         return
 
     if text == "⚖️ Изменить вес/рост/возраст":
-        set_state(uid,"edit_weight")
-        bot.send_message(msg.chat.id,"Введи через пробел:\n*вес рост возраст*\n\nПример: `68 172 35`",parse_mode="Markdown")
+        set_state(uid, "edit_weight")
+        bot.send_message(msg.chat.id,
+            t(u, "Введи через пробел:\n*вес рост возраст пол(м/ж)*\n\nПример: `68 172 35 ж` или `85 180 40 м`",
+                 "Enter separated by spaces:\n*weight height age gender(m/f)*\n\nExample: `68 172 35 f` or `85 180 40 m`"),
+            parse_mode="Markdown")
         return
 
     if state == "edit_weight":
         try:
-            parts=text.split(); u["weight"]=float(parts[0]); u["height"]=float(parts[1]); u["age"]=float(parts[2])
-            macros=calc_macros(u); u["cal_target"]=macros["calories"]
-            apply_keto_level(u,u.get("keto_level","🟡 Нормальное кето"))
-            set_state(uid,"menu")
-            bot.send_message(msg.chat.id,f"✅ Обновлено!\n⚖️{u['weight']}кг 📏{u['height']}см 🎂{int(u['age'])}лет\n🔥{u['cal_target']}ккал 🟠{u['fat_target']}г 🔵{u['protein_target']}г 🟡{u['carbs_target']}г",reply_markup=main_kb())
+            parts = text.split()
+            u["weight"] = float(parts[0])
+            u["height"] = float(parts[1])
+            u["age"]    = float(parts[2])
+            if len(parts) >= 4:
+                g = parts[3].lower()
+                u["gender"] = "male" if g in ["м","m","male","мужской"] else "female"
+            macros = calc_macros(u); u["cal_target"] = macros["calories"]
+            apply_keto_level(u, u.get("keto_level","🟡 Нормальное кето"))
+            set_state(uid, "menu")
+            gender_icon = "👨" if u["gender"]=="male" else "👩"
+            bot.send_message(msg.chat.id,
+                f"✅ {t(u,'Обновлено!','Updated!')}\n"
+                f"{gender_icon} ⚖️{u['weight']}кг 📏{u['height']}см 🎂{int(u['age'])}лет\n"
+                f"🔥{u['cal_target']} {t(u,'ккал','kcal')} | 🟠{u['fat_target']}г 🔵{u['protein_target']}г 🟡{u['carbs_target']}г",
+                reply_markup=main_kb())
         except:
-            bot.send_message(msg.chat.id,"❌ Пример: `68 172 35`",parse_mode="Markdown")
+            bot.send_message(msg.chat.id,
+                t(u,"❌ Пример: `68 172 35 ж`","❌ Example: `68 172 35 f`"),
+                parse_mode="Markdown")
         return
 
     if text == "🎯 Изменить цели вручную":
