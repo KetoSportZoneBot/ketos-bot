@@ -88,27 +88,45 @@ def bar(done, target):
 # KEYBOARDS  — NO PROBLEMATIC EMOJI IN BUTTON TEXT
 # ============================================================
 
-def main_kb():
+def main_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Мой статус", "Дневник")
-    kb.row("Фото блюда", "Ввести еду")
-    kb.row("Поиск продукта", "Спорт")
-    kb.row("Алкоголь", "Кетоны")
-    kb.row("ИИ Советник")
-    kb.row("Семья", "Настройки")
-    kb.row("Язык / Language", "Перезапуск")
+    if lang == "en":
+        kb.row("My status", "Food diary")
+        kb.row("Photo meal", "Add food")
+        kb.row("Search product", "Sport")
+        kb.row("Alcohol", "Ketones")
+        kb.row("AI Adviser")
+        kb.row("Family", "Settings")
+        kb.row("Language", "Restart")
+    else:
+        kb.row("Мой статус", "Дневник")
+        kb.row("Фото блюда", "Ввести еду")
+        kb.row("Поиск продукта", "Спорт")
+        kb.row("Алкоголь", "Кетоны")
+        kb.row("ИИ Советник")
+        kb.row("Семья", "Настройки")
+        kb.row("Язык / Language", "Перезапуск")
     return kb
 
-def gender_kb():
+def gender_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Женский", "Мужской")
+    if lang == "en":
+        kb.row("Female", "Male")
+        kb.row("Main menu")
+    else:
+        kb.row("Женский", "Мужской")
+        kb.row("Главное меню")
     return kb
 
-def weight_kb():
+def weight_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("50", "55", "60", "65")
     kb.row("70", "75", "80", "85")
     kb.row("90", "95", "100", "110")
+    if lang == "en":
+        kb.row("Main menu")
+    else:
+        kb.row("Главное меню")
     return kb
 
 def height_kb():
@@ -175,62 +193,102 @@ def keto_level_kb(lang):
         kb.row("Ручной ввод")
     return kb
 
-def sport_kb():
+def sport_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Трейл / Бег", "Велогонка")
-    kb.row("Триатлон", "Лыжи")
-    kb.row("Силовая", "Возврат в кетоз")
-    kb.row("Алкоголь", "Главное меню")
+    if lang == "en":
+        kb.row("Trail / Run", "Cycling race")
+        kb.row("Triathlon", "Skiing")
+        kb.row("Strength", "Back to ketosis")
+        kb.row("Alcohol", "Main menu")
+    else:
+        kb.row("Трейл / Бег", "Велогонка")
+        kb.row("Триатлон", "Лыжи")
+        kb.row("Силовая", "Возврат в кетоз")
+        kb.row("Алкоголь", "Главное меню")
     return kb
 
-def after_gel_kb():
+def after_gel_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("План возврата в кетоз")
-    kb.row("Мой статус", "Главное меню")
+    if lang == "en":
+        kb.row("Ketosis recovery plan")
+        kb.row("My status", "Main menu")
+    else:
+        kb.row("План возврата в кетоз")
+        kb.row("Мой статус", "Главное меню")
     return kb
 
-def confirm_photo_kb():
+def confirm_photo_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Добавить в дневник", "Скорректировать")
-    kb.row("Отмена")
+    if lang == "en":
+        kb.row("Add to diary", "Correct")
+        kb.row("Cancel")
+    else:
+        kb.row("Добавить в дневник", "Скорректировать")
+        kb.row("Отмена")
     return kb
 
-def settings_kb():
+def settings_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Изменить вес / рост / возраст")
-    kb.row("Изменить цель")
-    kb.row("Изменить пол")
-    kb.row("Изменить режим питания")
-    kb.row("Изменить цели вручную")
-    kb.row("Пересчитать автоматически")
-    kb.row("Сбросить день")
-    kb.row("Главное меню")
+    if lang == "en":
+        kb.row("Change weight / height / age")
+        kb.row("Change goal")
+        kb.row("Change gender")
+        kb.row("Change diet mode")
+        kb.row("Change targets manually")
+        kb.row("Recalculate automatically")
+        kb.row("Reset day")
+        kb.row("Main menu")
+    else:
+        kb.row("Изменить вес / рост / возраст")
+        kb.row("Изменить цель")
+        kb.row("Изменить пол")
+        kb.row("Изменить режим питания")
+        kb.row("Изменить цели вручную")
+        kb.row("Пересчитать автоматически")
+        kb.row("Сбросить день")
+        kb.row("Главное меню")
     return kb
 
-def alcohol_kb():
+def alcohol_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("Сухое вино 150мл")
-    kb.row("Полусухое вино 150мл")
-    kb.row("Пиво светлое 330мл")
-    kb.row("Пиво тёмное 330мл")
-    kb.row("Виски / Водка / Коньяк 50мл")
-    kb.row("Коктейль 200мл")
-    kb.row("Шампанское 150мл")
-    kb.row("Несколько пив 700мл")
-    kb.row("Ввести вручную")
-    kb.row("Главное меню")
+    if lang == "en":
+        kb.row("Dry wine 150ml")
+        kb.row("Semi-dry wine 150ml")
+        kb.row("Light beer 330ml")
+        kb.row("Dark beer 330ml")
+        kb.row("Whisky / Vodka / Cognac 50ml")
+        kb.row("Cocktail 200ml")
+        kb.row("Champagne 150ml")
+        kb.row("Several beers 700ml")
+        kb.row("Enter manually")
+        kb.row("Main menu")
+    else:
+        kb.row("Сухое вино 150мл")
+        kb.row("Полусухое вино 150мл")
+        kb.row("Пиво светлое 330мл")
+        kb.row("Пиво тёмное 330мл")
+        kb.row("Виски / Водка / Коньяк 50мл")
+        kb.row("Коктейль 200мл")
+        kb.row("Шампанское 150мл")
+        kb.row("Несколько пив 700мл")
+        kb.row("Ввести вручную")
+        kb.row("Главное меню")
     return kb
 
-def portions_kb():
+def portions_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("1 порция", "2 порции", "3 порции")
-    kb.row("Главное меню")
+    if lang == "en":
+        kb.row("1 serving", "2 servings", "3 servings")
+        kb.row("Main menu")
+    else:
+        kb.row("1 порция", "2 порции", "3 порции")
+        kb.row("Главное меню")
     return kb
 
 def choice_kb(n):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row(*[str(i) for i in range(1, n+1)])
-    kb.row("Искать снова", "Главное меню")
+    kb.row("Искать снова / Search again", "Главное меню / Main menu")
     return kb
 
 def lang_kb():
@@ -540,7 +598,7 @@ def handle_photo(msg):
         image_bytes = requests.get(f"https://api.telegram.org/file/bot{TOKEN}/{fi.file_path}", timeout=10).content
     except Exception as e:
         print(f"DL error: {e}")
-        bot.send_message(msg.chat.id, L(u,"Ошибка загрузки фото","Photo download error"), reply_markup=main_kb())
+        bot.send_message(msg.chat.id, L(u,"Ошибка загрузки фото","Photo download error"), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     def do():
@@ -550,7 +608,7 @@ def handle_photo(msg):
                 bot.send_message(msg.chat.id,
                     L(u,"Не удалось распознать блюдо. Введи вручную.",
                         "Could not recognize the dish. Enter manually."),
-                    reply_markup=main_kb())
+                    reply_markup=main_kb(u.get("lang","ru")))
                 set_state(uid,"menu"); return
             u["pending_food"] = result
             set_state(uid,"confirm_photo")
@@ -564,10 +622,10 @@ def handle_photo(msg):
                 f"Calories: {result['calories']} kcal\n"
                 f"Fat: {result['fat']}g | Protein: {result['protein']}g | Carbs: {result['carbs']}g\n\n"
                 f"{warn}{note}\n\n{L(u,'Всё верно?','Is this correct?')}",
-                reply_markup=confirm_photo_kb())
+                reply_markup=confirm_photo_kb(u.get("lang","ru")))
         except Exception as e:
             print(f"Photo thread error: {e}")
-            bot.send_message(msg.chat.id, L(u,"Ошибка анализа. Попробуй ещё раз.","Analysis error. Try again."), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, L(u,"Ошибка анализа. Попробуй ещё раз.","Analysis error. Try again."), reply_markup=main_kb(u.get("lang","ru")))
             set_state(uid,"menu")
 
     threading.Thread(target=do, daemon=True).start()
@@ -591,11 +649,71 @@ def handle_all(msg):
     text = msg.text.strip() if msg.text else ""
     state = get_state(uid)
 
-    # Global resets
-    if text in ["Перезапуск", "Главное меню", "Main menu"]:
+    # Global resets + all main menu buttons that need lang-aware routing
+    if text in ["Перезапуск", "Главное меню", "Main menu", "Restart"]:
         set_state(uid,"menu")
-        bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb())
+        bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb(u.get("lang","ru")))
         return
+
+    # Map English button texts to Russian equivalents for unified handling
+    EN_TO_RU = {
+        "My status": "Мой статус",
+        "Food diary": "Дневник",
+        "Photo meal": "Фото блюда",
+        "Add food": "Ввести еду",
+        "Search product": "Поиск продукта",
+        "Sport": "Спорт",
+        "Alcohol": "Алкоголь",
+        "Ketones": "Кетоны",
+        "AI Adviser": "ИИ Советник",
+        "Family": "Семья",
+        "Settings": "Настройки",
+        "Restart": "Перезапуск",
+        "Main menu": "Главное меню",
+        # Sport
+        "Trail / Run": "Трейл / Бег",
+        "Cycling race": "Велогонка",
+        "Triathlon": "Триатлон",
+        "Skiing": "Лыжи",
+        "Strength": "Силовая",
+        "Back to ketosis": "Возврат в кетоз",
+        "Ketosis recovery plan": "План возврата в кетоз",
+        # Photo confirm
+        "Add to diary": "Добавить в дневник",
+        "Correct": "Скорректировать",
+        "Cancel": "Отмена",
+        # Settings
+        "Change weight / height / age": "Изменить вес / рост / возраст",
+        "Change goal": "Изменить цель",
+        "Change gender": "Изменить пол",
+        "Change diet mode": "Изменить режим питания",
+        "Change targets manually": "Изменить цели вручную",
+        "Recalculate automatically": "Пересчитать автоматически",
+        "Reset day": "Сбросить день",
+        # Gender
+        "Female": "Женский",
+        "Male": "Мужской",
+        # Alcohol
+        "Dry wine 150ml": "Сухое вино 150мл",
+        "Semi-dry wine 150ml": "Полусухое вино 150мл",
+        "Light beer 330ml": "Пиво светлое 330мл",
+        "Dark beer 330ml": "Пиво тёмное 330мл",
+        "Whisky / Vodka / Cognac 50ml": "Виски / Водка / Коньяк 50мл",
+        "Cocktail 200ml": "Коктейль 200мл",
+        "Champagne 150ml": "Шампанское 150мл",
+        "Several beers 700ml": "Несколько пив 700мл",
+        "Enter manually": "Ввести вручную",
+        # Portions
+        "1 serving": "1 порция",
+        "2 servings": "2 порции",
+        "3 servings": "3 порции",
+        # Search
+        "Искать снова / Search again": "Искать снова",
+        "Главное меню / Main menu": "Главное меню",
+    }
+    # Translate EN button to RU for unified processing
+    if text in EN_TO_RU:
+        text = EN_TO_RU[text]
 
     # ======================== ЯЗЫК ========================
     if state == "ask_lang" or text in ["Русский","English","Язык / Language"]:
@@ -604,7 +722,7 @@ def handle_all(msg):
             # Если уже зарегистрирован — просто подтверждаем язык
             if u.get("name"):
                 set_state(uid,"menu")
-                bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb())
+                bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb(u.get("lang","ru")))
             else:
                 set_state(uid,"ask_name")
                 bot.send_message(msg.chat.id,"Welcome to KetOS! What's your name?", reply_markup=types.ReplyKeyboardRemove())
@@ -612,7 +730,7 @@ def handle_all(msg):
             u["lang"]="ru"
             if u.get("name"):
                 set_state(uid,"menu")
-                bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb())
+                bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb(u.get("lang","ru")))
             else:
                 set_state(uid,"ask_name")
                 bot.send_message(msg.chat.id,"Добро пожаловать в KetOS! Как тебя зовут?", reply_markup=types.ReplyKeyboardRemove())
@@ -625,15 +743,15 @@ def handle_all(msg):
         if text == "English":
             u["lang"]="en"
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb())
+            bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb(u.get("lang","ru")))
         elif text == "Русский":
             u["lang"]="ru"
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb())
+            bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb(u.get("lang","ru")))
         else:
             # Любая другая кнопка — просто возврат в меню
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     # ======================== ОНБОРДИНГ ========================
@@ -642,13 +760,13 @@ def handle_all(msg):
         set_state(uid,"ask_gender")
         bot.send_message(msg.chat.id,
             L(u,f"Привет, {text}! Твой пол?", f"Hi, {text}! Your gender?"),
-            reply_markup=gender_kb())
+            reply_markup=gender_kb(u.get("lang","ru")))
         return
 
     if state == "ask_gender":
         u["gender"] = "male" if "Мужской" in text or "Male" in text else "female"
         set_state(uid,"ask_weight")
-        bot.send_message(msg.chat.id, L(u,"Введи вес в кг:","Enter weight in kg:"), reply_markup=weight_kb())
+        bot.send_message(msg.chat.id, L(u,"Введи вес в кг:","Enter weight in kg:"), reply_markup=weight_kb(u.get("lang","ru")))
         return
 
     if state == "ask_weight":
@@ -721,7 +839,7 @@ def handle_all(msg):
         u["keto_level"] = level
         m = apply_macros(u)
         set_state(uid,"menu")
-        bot.send_message(msg.chat.id, profile_text(u,m), reply_markup=main_kb())
+        bot.send_message(msg.chat.id, profile_text(u,m), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if state == "manual_targets_onboard":
@@ -732,7 +850,7 @@ def handle_all(msg):
             m = {"calories":u["cal_target"],"fat":u["fat_target"],"protein":u["protein_target"],
                  "carbs":u["carbs_target"],"bmr":0,"tdee":u["cal_target"]}
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id, profile_text(u,m), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, profile_text(u,m), reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: 1600 125 100 20","Example: 1600 125 100 20"))
         return
@@ -752,7 +870,7 @@ def handle_all(msg):
             f"Fat:      {bar(u['fat'],u['fat_target'])} {u['fat']}/{u['fat_target']}g\n"
             f"Protein:  {bar(u['protein'],u['protein_target'])} {u['protein']}/{u['protein_target']}g\n"
             f"Carbs:    {bar(u['carbs'],u['carbs_target'])} {u['carbs']}/{u['carbs_target']}g",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Дневник":
@@ -761,7 +879,7 @@ def handle_all(msg):
         bot.send_message(msg.chat.id,
             f"{L(u,'Дневник питания','Food diary')}\n\n{mt}\n\n"
             f"{u['calories']} kcal | Fat:{u['fat']}g | Prot:{u['protein']}g | Carbs:{u['carbs']}g",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     # ======================== ФОТО ========================
@@ -807,7 +925,7 @@ def handle_all(msg):
                 f"{name}{al} {L(u,'добавлено','added')}!\n"
                 f"Fat+{fat}g | Prot+{prot}g | Carbs+{carbs}g | {cal}kcal{warn}\n"
                 f"{L(u,'Осталось углеводов','Carbs left')}: {max(cl,0)}g",
-                reply_markup=main_kb())
+                reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: творог 5 18 3","Example: cottage cheese 5 18 3"))
         return
@@ -827,7 +945,7 @@ def handle_all(msg):
             eng = tr.get(text.lower())
             if eng: results = search_food(eng)
         if not results:
-            bot.send_message(msg.chat.id, L(u,"Не найдено. Введи вручную.","Not found. Enter manually."), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, L(u,"Не найдено. Введи вручную.","Not found. Enter manually."), reply_markup=main_kb(u.get("lang","ru")))
             set_state(uid,"menu"); return
         u["search_results"] = results
         resp = L(u,f"Найдено {len(results)} продуктов (на 100г):\n\n",
@@ -867,7 +985,7 @@ def handle_all(msg):
                 f"{f['name'][:40]} — {int(grams)}g {L(u,'добавлено','added')}!\n"
                 f"F+{fat}g P+{prot}g C+{carbs}g {cal}kcal\n"
                 f"{L(u,'Осталось углеводов','Carbs left')}: {max(round(cl),0)}g",
-                reply_markup=main_kb())
+                reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Введи число, например: 150","Enter number, e.g.: 150"))
         return
@@ -881,7 +999,7 @@ def handle_all(msg):
         bot.send_message(msg.chat.id,
             f"{f['name']} {L(u,'добавлено','added')}!\nF+{f['fat']}g P+{f['protein']}g C+{f['carbs']}g {f['cal']}kcal\n"
             f"{L(u,'Осталось','Left')}: {max(cl,0)}g",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     # ======================== ФОТО ПОДТВЕРЖДЕНИЕ ========================
@@ -897,7 +1015,7 @@ def handle_all(msg):
                 bot.send_message(msg.chat.id,
                     f"{L(u,'Добавлено!','Added!')} {f['calories']}kcal\n"
                     f"{L(u,'Осталось углеводов','Carbs left')}: {max(cl,0)}g",
-                    reply_markup=main_kb())
+                    reply_markup=main_kb(u.get("lang","ru")))
             return
         if text == "Скорректировать":
             f = u.get("pending_food")
@@ -907,17 +1025,17 @@ def handle_all(msg):
                 f"{L(u,'Напиши: название жиры белки углеводы','Write: name fat protein carbs')}\n\n"
                 f"{L(u,'Пример: рыба с овощами 12 25 8','Example: fish with veggies 12 25 8')}\n\n"
                 f"{L(u,'Или нажми Отмена','Or press Отмена')}",
-                reply_markup=confirm_photo_kb())
+                reply_markup=confirm_photo_kb(u.get("lang","ru")))
             return
         if text == "Отмена":
             u["pending_food"]=None; set_state(uid,"menu")
-            bot.send_message(msg.chat.id, L(u,"Отменено.","Cancelled."), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, L(u,"Отменено.","Cancelled."), reply_markup=main_kb(u.get("lang","ru")))
             return
 
     if state == "correct_photo":
         if text == "Отмена":
             u["pending_food"]=None; set_state(uid,"menu")
-            bot.send_message(msg.chat.id, L(u,"Отменено.","Cancelled."), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, L(u,"Отменено.","Cancelled."), reply_markup=main_kb(u.get("lang","ru")))
             return
         try:
             parts = text.strip().split()
@@ -933,7 +1051,7 @@ def handle_all(msg):
             u["fat"]+=fat; u["protein"]+=prot; u["carbs"]+=carbs; u["calories"]+=cal
             u["meals"].append(f"{name} (F{fat} P{prot} C{carbs} | {cal}kcal)")
             u["pending_food"]=None; set_state(uid,"menu")
-            bot.send_message(msg.chat.id, f"{name} {L(u,'добавлено','added')}! F:{fat}g P:{prot}g C:{carbs}g {cal}kcal", reply_markup=main_kb())
+            bot.send_message(msg.chat.id, f"{name} {L(u,'добавлено','added')}! F:{fat}g P:{prot}g C:{carbs}g {cal}kcal", reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: рыба с овощами 12 25 8","Example: fish 12 25 8"))
         return
@@ -954,7 +1072,7 @@ def handle_all(msg):
             elif val<3:   s=L(u,"Оптимальный кетоз! Продолжай!","Optimal ketosis! Keep going!")
             else:         s=L(u,"Глубокий кетоз. Пей воду + электролиты.","Deep ketosis. Drink water + electrolytes.")
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id, f"{val} mmol/L\n{s}", reply_markup=main_kb())
+            bot.send_message(msg.chat.id, f"{val} mmol/L\n{s}", reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Введи число, например: 1.8","Enter number, e.g.: 1.8"))
         return
@@ -962,7 +1080,7 @@ def handle_all(msg):
     # ======================== АЛКОГОЛЬ ========================
     if text == "Алкоголь":
         set_state(uid,"choose_alcohol")
-        bot.send_message(msg.chat.id, L(u,"Что пил?","What did you drink?"), reply_markup=alcohol_kb())
+        bot.send_message(msg.chat.id, L(u,"Что пил?","What did you drink?"), reply_markup=alcohol_kb(u.get("lang","ru")))
         return
 
     if state == "choose_alcohol":
@@ -974,7 +1092,7 @@ def handle_all(msg):
         drink = ALCOHOL_DB.get(text)
         if drink:
             u["pending_alcohol"]=drink; set_state(uid,"ask_alcohol_amount")
-            bot.send_message(msg.chat.id, f"{drink['name']}\n{L(u,'Сколько порций?','How many servings?')}", reply_markup=portions_kb())
+            bot.send_message(msg.chat.id, f"{drink['name']}\n{L(u,'Сколько порций?','How many servings?')}", reply_markup=portions_kb(u.get("lang","ru")))
         return
 
     if state == "ask_alcohol_amount":
@@ -985,9 +1103,9 @@ def handle_all(msg):
             u["carbs"]+=carbs; u["calories"]+=carbs*4
             u["meals"].append(f"{drink['name']} x{qty} ({carbs}g carbs)")
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id, alcohol_text(u,drink["name"],ml,carbs), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, alcohol_text(u,drink["name"],ml,carbs), reply_markup=main_kb(u.get("lang","ru")))
         except:
-            set_state(uid,"menu"); bot.send_message(msg.chat.id, L(u,"Используй кнопки","Use buttons"), reply_markup=main_kb())
+            set_state(uid,"menu"); bot.send_message(msg.chat.id, L(u,"Используй кнопки","Use buttons"), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if state == "manual_alcohol":
@@ -996,7 +1114,7 @@ def handle_all(msg):
             u["carbs"]+=carbs; u["calories"]+=carbs*4
             u["meals"].append(f"{name} ({ml}ml, {carbs}g carbs)")
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id, alcohol_text(u,name,ml,carbs), reply_markup=main_kb())
+            bot.send_message(msg.chat.id, alcohol_text(u,name,ml,carbs), reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: Пиво 500 20","Example: Beer 500 20"))
         return
@@ -1004,12 +1122,12 @@ def handle_all(msg):
     # ======================== СПОРТ ========================
     if text == "Спорт":
         set_state(uid,"sport")
-        bot.send_message(msg.chat.id, L(u,"Выбери активность:","Choose activity:"), reply_markup=sport_kb())
+        bot.send_message(msg.chat.id, L(u,"Выбери активность:","Choose activity:"), reply_markup=sport_kb(u.get("lang","ru")))
         return
 
     if text in ["Возврат в кетоз","План возврата в кетоз"]:
         set_state(uid,"menu")
-        bot.send_message(msg.chat.id, recovery_text(u, u.get("last_gel_carbs",60)), reply_markup=main_kb())
+        bot.send_message(msg.chat.id, recovery_text(u, u.get("last_gel_carbs",60)), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Силовая":
@@ -1017,7 +1135,7 @@ def handle_all(msg):
         bot.send_message(msg.chat.id,
             L(u,"Силовая на кето:\nДо: MCT масло + кофе\nВо время: вода + соль\nПосле: 30-40г белка за 30 мин",
                 "Strength training on keto:\nBefore: MCT oil + coffee\nDuring: water + salt\nAfter: 30-40g protein in 30 min"),
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text in ["Трейл / Бег","Велогонка","Триатлон","Лыжи"]:
@@ -1045,14 +1163,14 @@ def handle_all(msg):
             lines.append(L(u,f"\nИтого: {total}г углеводов\nВозврат в кетоз: ~{max(4,int(total/15))} часов\n\nПосле финиша нажми: План возврата в кетоз",
                              f"\nTotal: {total}g carbs\nBack to ketosis: ~{max(4,int(total/15))} hours\n\nAfter finish press: Plan возврата в кетоз"))
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id,"".join(lines),reply_markup=after_gel_kb())
+            bot.send_message(msg.chat.id,"".join(lines),reply_markup=after_gel_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: 42 км или 3 часа","Example: 42 km or 3 hours"))
         return
 
     # ======================== ИИ СОВЕТНИК ========================
     if text == "ИИ Советник":
-        bot.send_message(msg.chat.id, ai_advisor_text(u), reply_markup=main_kb())
+        bot.send_message(msg.chat.id, ai_advisor_text(u), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     # ======================== СЕМЬЯ ========================
@@ -1062,7 +1180,7 @@ def handle_all(msg):
             f"{L(u,'Семейный режим','Family mode')}\n\n"
             f"{L(u,'Пригласи партнёра:','Invite partner:')}\nhttps://t.me/ketOSzoneBot?start=family_{uid}\n\n"
             f"{L(u,'Твой рацион:','Your meals:')}\n{mt}",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     # ======================== НАСТРОЙКИ ========================
@@ -1078,7 +1196,7 @@ def handle_all(msg):
             f"Goal: {goal_now}\n"
             f"Mode: {u.get('keto_level','—')}\n\n"
             f"Targets: {u['cal_target']}kcal | F:{u['fat_target']}g | P:{u['protein_target']}g | C:{u['carbs_target']}g",
-            reply_markup=settings_kb())
+            reply_markup=settings_kb(u.get("lang","ru")))
         return
 
     if text == "Изменить цель":
@@ -1096,7 +1214,7 @@ def handle_all(msg):
             f"{L(u,'Цель изменена','Goal changed')}: {text}\n"
             f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
             f"BMR:{m['bmr']} TDEE:{m['tdee']}",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if state == "ask_goal_after_edit":
@@ -1107,7 +1225,7 @@ def handle_all(msg):
             f"{L(u,'Цель','Goal')}: {u['goal']}\n"
             f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
             f"BMR:{m['bmr']} TDEE:{m['tdee']}",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Изменить пол":
@@ -1115,7 +1233,7 @@ def handle_all(msg):
         g = L(u,"Мужской" if u.get("gender")=="male" else "Женский",
                 "Male" if u.get("gender")=="male" else "Female")
         bot.send_message(msg.chat.id, f"{L(u,'Текущий пол','Current gender')}: {g}\n{L(u,'Выбери:','Choose:')}",
-                         reply_markup=gender_kb())
+                         reply_markup=gender_kb(u.get("lang","ru")))
         return
 
     if state == "change_gender":
@@ -1123,7 +1241,7 @@ def handle_all(msg):
         m = apply_macros(u); set_state(uid,"menu")
         bot.send_message(msg.chat.id,
             f"{L(u,'Пол обновлён','Gender updated')}!\n{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\nBMR:{m['bmr']} TDEE:{m['tdee']}",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Изменить вес / рост / возраст":
@@ -1151,7 +1269,7 @@ def handle_all(msg):
                 f"{L(u,'Цель','Goal')}: {u.get('goal','—')}\n"
                 f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
                 f"BMR:{m['bmr']} TDEE:{m['tdee']}",
-                reply_markup=main_kb())
+                reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: 68 166 49","Example: 68 166 49"))
         return
@@ -1164,7 +1282,7 @@ def handle_all(msg):
             f"{L(u,'Цель','Goal')}: {u['goal']}\n"
             f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
             f"BMR:{m['bmr']} TDEE:{m['tdee']}",
-            reply_markup=main_kb())
+            reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Изменить режим питания":
@@ -1178,7 +1296,7 @@ def handle_all(msg):
         level = KETO_LEVEL_MAP.get(text)
         if level:
             u["keto_level"]=level; m=apply_macros(u); set_state(uid,"menu")
-            bot.send_message(msg.chat.id, f"{L(u,'Режим изменён','Mode changed')}: {level}\nF:{u['fat_target']}g P:{u['protein_target']}g C:{u['carbs_target']}g", reply_markup=main_kb())
+            bot.send_message(msg.chat.id, f"{L(u,'Режим изменён','Mode changed')}: {level}\nF:{u['fat_target']}g P:{u['protein_target']}g C:{u['carbs_target']}g", reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Изменить цели вручную":
@@ -1192,7 +1310,7 @@ def handle_all(msg):
             nums=[int(x) for x in text.split() if x.isdigit()]
             u["cal_target"]=nums[0]; u["fat_target"]=nums[1]; u["protein_target"]=nums[2]; u["carbs_target"]=nums[3]
             u["keto_level"]="Manual"; set_state(uid,"menu")
-            bot.send_message(msg.chat.id, f"{L(u,'Цели обновлены','Targets updated')}!\n{u['cal_target']}kcal F:{u['fat_target']}g P:{u['protein_target']}g C:{u['carbs_target']}g", reply_markup=main_kb())
+            bot.send_message(msg.chat.id, f"{L(u,'Цели обновлены','Targets updated')}!\n{u['cal_target']}kcal F:{u['fat_target']}g P:{u['protein_target']}g C:{u['carbs_target']}g", reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: 1600 125 100 20","Example: 1600 125 100 20"))
         return
@@ -1207,17 +1325,17 @@ def handle_all(msg):
             f"{L(u,'Пересчитано','Recalculated')}!\n"
             f"{L(u,'Цель','Goal')}: {u.get('goal','—')}\n"
             f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
-            f"BMR:{m['bmr']} TDEE:{m['tdee']}", reply_markup=main_kb())
+            f"BMR:{m['bmr']} TDEE:{m['tdee']}", reply_markup=main_kb(u.get("lang","ru")))
         return
 
     if text == "Сбросить день":
         u["fat"]=u["protein"]=u["carbs"]=u["calories"]=0; u["meals"]=[]
-        set_state(uid,"menu"); bot.send_message(msg.chat.id, L(u,"День сброшен!","Day reset!"), reply_markup=main_kb())
+        set_state(uid,"menu"); bot.send_message(msg.chat.id, L(u,"День сброшен!","Day reset!"), reply_markup=main_kb(u.get("lang","ru")))
         return
 
     # fallback
     set_state(uid,"menu")
-    bot.send_message(msg.chat.id, L(u,"Используй кнопки меню","Use menu buttons"), reply_markup=main_kb())
+    bot.send_message(msg.chat.id, L(u,"Используй кнопки меню","Use menu buttons"), reply_markup=main_kb(u.get("lang","ru")))
 
 print("KetOS bot started!")
 bot.polling(none_stop=True, interval=0, timeout=20)
