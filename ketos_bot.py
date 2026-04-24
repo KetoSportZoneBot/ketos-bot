@@ -294,6 +294,7 @@ def keto_level_kb():
 def settings_kb():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("⚖️ Изменить вес/рост/возраст")
+    kb.row("👤 Изменить пол / Change gender")
     kb.row("🥗 Изменить режим питания")
     kb.row("🎯 Изменить цели вручную")
     kb.row("🔄 Пересчитать автоматически")
@@ -700,9 +701,9 @@ def handle_all(msg):
     text = msg.text
     state = get_state(uid)
 
-    if text in ["🔄 Перезапуск", "◀️ Главное меню"]:
+    if text in ["🔄 Перезапуск", "◀️ Главное меню", "/start"]:
         set_state(uid, "menu")
-        bot.send_message(msg.chat.id, "✅ Главное меню:", reply_markup=main_kb())
+        bot.send_message(msg.chat.id, t(u,"✅ Главное меню:","✅ Main menu:"), reply_markup=main_kb())
         return
 
     # ======================== ЯЗЫК ========================
@@ -1225,14 +1226,16 @@ def handle_all(msg):
     # ======================== НАСТРОЙКИ ========================
     if text == "⚙️ Настройки":
         keto_level = u.get("keto_level") or "🟡 Нормальное кето"
+        gender_icon = "👨 " + t(u,"Мужской","Male") if u.get("gender")=="male" else "👩 " + t(u,"Женский","Female")
         bot.send_message(msg.chat.id,
-            f"⚙️ *Настройки*\n\n"
-            f"👤 {u.get('name','—')}\n"
+            f"⚙️ *{t(u,'Настройки','Settings')}*\n\n"
+            f"👤 {u.get('name','—')} | {gender_icon}\n"
             f"⚖️ {u.get('weight','—')}кг | 📏 {u.get('height','—')}см | 🎂 {int(u.get('age',0))}лет\n"
             f"🏃 {u.get('sport_type','—')} | 🎯 {u.get('goal','—')}\n"
-            f"🥗 Режим: {keto_level}\n\n"
-            f"📊 *Цели:*\n🔥 {u['cal_target']} ккал | 🟠 {u['fat_target']}г | 🔵 {u['protein_target']}г | 🟡 {u['carbs_target']}г",
-            parse_mode="Markdown",reply_markup=settings_kb())
+            f"🥗 {t(u,'Режим','Mode')}: {keto_level}\n\n"
+            f"📊 *{t(u,'Цели','Targets')}:*\n"
+            f"🔥 {u['cal_target']} {t(u,'ккал','kcal')} | 🟠 {u['fat_target']}г | 🔵 {u['protein_target']}г | 🟡 {u['carbs_target']}г",
+            parse_mode="Markdown", reply_markup=settings_kb())
         return
 
     if text == "🥗 Изменить режим питания":
@@ -1249,35 +1252,99 @@ def handle_all(msg):
             bot.send_message(msg.chat.id,f"✅ Режим: {text}\n🟠{u['fat_target']}г 🔵{u['protein_target']}г 🟡{u['carbs_target']}г",reply_markup=main_kb())
         return
 
+    if text == "👤 Изменить пол / Change gender":
+        set_state(uid, "change_gender")
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.row("👩 Женский / Female", "👨 Мужской / Male")
+        kb.row("◀️ Главное меню")
+        gender_now = "👩 Женский" if u.get("gender","female") == "female" else "👨 Мужской"
+        bot.send_message(msg.chat.id,
+            t(u,
+              f"Текущий пол: {gender_now}\n\nВыбери новый:",
+              f"Current gender: {gender_now}\n\nSelect new:"),
+            reply_markup=kb)
+        return
+
+    if state == "change_gender":
+        if "Мужской" in text or "Male" in text:
+            u["gender"] = "male"
+            icon = "👨"
+        else:
+            u["gender"] = "female"
+            icon = "👩"
+        macros = calc_macros(u)
+        u["cal_target"]     = macros["calories"]
+        u["fat_target"]     = macros["fat"]
+        u["protein_target"] = macros["protein"]
+        u["carbs_target"]   = macros["carbs"]
+        set_state(uid, "menu")
+        kcal = t(u, "ккал", "kcal")
+        bot.send_message(msg.chat.id,
+            f"✅ {icon} {t(u,'Пол обновлён и калории пересчитаны!','Gender updated and calories recalculated!')}\n\n"
+            f"🔥 {macros['calories']} {kcal}\n"
+            f"🟠 {macros['fat']}г | 🔵 {macros['protein']}г | 🟡 {macros['carbs']}г\n\n"
+            f"_BMR: {macros['bmr']} {kcal} | TDEE: {macros['tdee']} {kcal}_",
+            parse_mode="Markdown", reply_markup=main_kb())
+        return
+
     if text == "⚖️ Изменить вес/рост/возраст":
         set_state(uid, "edit_weight")
         bot.send_message(msg.chat.id,
-            t(u, "Введи через пробел:\n*вес рост возраст пол(м/ж)*\n\nПример: `68 172 35 ж` или `85 180 40 м`",
-                 "Enter separated by spaces:\n*weight height age gender(m/f)*\n\nExample: `68 172 35 f` or `85 180 40 m`"),
+            t(u,
+              "Введи через пробел:\n*вес рост возраст* (и пол: м или ж — необязательно)\n\n"
+              "Примеры:\n`68 166 49`\n`68 166 49 ж`\n`85 180 40 м`",
+              "Enter separated by spaces:\n*weight height age* (gender: m or f — optional)\n\n"
+              "Examples:\n`68 166 49`\n`68 166 49 f`\n`85 180 40 m`"),
             parse_mode="Markdown")
         return
 
     if state == "edit_weight":
         try:
             parts = text.split()
-            u["weight"] = float(parts[0])
-            u["height"] = float(parts[1])
-            u["age"]    = float(parts[2])
-            if len(parts) >= 4:
-                g = parts[3].lower()
-                u["gender"] = "male" if g in ["м","m","male","мужской"] else "female"
-            macros = calc_macros(u); u["cal_target"] = macros["calories"]
-            apply_keto_level(u, u.get("keto_level","🟡 Нормальное кето"))
+            # Нужно минимум 3 числа
+            nums = []
+            gender_str = None
+            for p in parts:
+                clean = p.replace("кг","").replace("kg","").replace("см","").replace("cm","")
+                if clean.replace(".","").isdigit():
+                    nums.append(float(clean))
+                elif p.lower() in ["м","m","male","мужской","муж"]:
+                    gender_str = "male"
+                elif p.lower() in ["ж","f","female","женский","жен"]:
+                    gender_str = "female"
+
+            if len(nums) < 3:
+                raise ValueError("need 3 numbers")
+
+            u["weight"] = nums[0]
+            u["height"] = nums[1]
+            u["age"]    = nums[2]
+            if gender_str:
+                u["gender"] = gender_str
+
+            macros = calc_macros(u)
+            u["cal_target"]     = macros["calories"]
+            u["fat_target"]     = macros["fat"]
+            u["protein_target"] = macros["protein"]
+            u["carbs_target"]   = macros["carbs"]
             set_state(uid, "menu")
-            gender_icon = "👨" if u["gender"]=="male" else "👩"
+
+            gender_icon = "👨" if u["gender"] == "male" else "👩"
+            kcal = t(u, "ккал", "kcal")
             bot.send_message(msg.chat.id,
-                f"✅ {t(u,'Обновлено!','Updated!')}\n"
-                f"{gender_icon} ⚖️{u['weight']}кг 📏{u['height']}см 🎂{int(u['age'])}лет\n"
-                f"🔥{u['cal_target']} {t(u,'ккал','kcal')} | 🟠{u['fat_target']}г 🔵{u['protein_target']}г 🟡{u['carbs_target']}г",
-                reply_markup=main_kb())
+                f"✅ {t(u,'Обновлено и пересчитано!','Updated and recalculated!')}\n\n"
+                f"{gender_icon} ⚖️{u['weight']}кг 📏{u['height']}см 🎂{int(u['age'])}лет\n\n"
+                f"🔥 {macros['calories']} {kcal}\n"
+                f"🟠 {t(u,'Жиры','Fat')}: {macros['fat']}г | "
+                f"🔵 {t(u,'Белки','Protein')}: {macros['protein']}г | "
+                f"🟡 {t(u,'Углеводы','Carbs')}: {macros['carbs']}г\n\n"
+                f"_BMR: {macros['bmr']} {kcal} | TDEE: {macros['tdee']} {kcal}_",
+                parse_mode="Markdown", reply_markup=main_kb())
         except:
             bot.send_message(msg.chat.id,
-                t(u,"❌ Пример: `68 172 35 ж`","❌ Example: `68 172 35 f`"),
+                t(u,
+                  "❌ Введи минимум 3 числа через пробел:\n`68 166 49`",
+                  "❌ Enter at least 3 numbers:\n`68 166 49`"),
                 parse_mode="Markdown")
         return
 
