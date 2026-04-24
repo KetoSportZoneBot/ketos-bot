@@ -198,6 +198,7 @@ def confirm_photo_kb():
 def settings_kb():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("Изменить вес / рост / возраст")
+    kb.row("Изменить цель")
     kb.row("Изменить пол")
     kb.row("Изменить режим питания")
     kb.row("Изменить цели вручную")
@@ -599,11 +600,22 @@ def handle_all(msg):
     # ======================== ЯЗЫК ========================
     if state == "ask_lang" or text in ["Русский","English","Язык / Language"]:
         if text == "English":
-            u["lang"]="en"; set_state(uid,"ask_name")
-            bot.send_message(msg.chat.id,"Welcome to KetOS! What's your name?", reply_markup=types.ReplyKeyboardRemove())
+            u["lang"]="en"
+            # Если уже зарегистрирован — просто подтверждаем язык
+            if u.get("name"):
+                set_state(uid,"menu")
+                bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb())
+            else:
+                set_state(uid,"ask_name")
+                bot.send_message(msg.chat.id,"Welcome to KetOS! What's your name?", reply_markup=types.ReplyKeyboardRemove())
         elif text == "Русский":
-            u["lang"]="ru"; set_state(uid,"ask_name")
-            bot.send_message(msg.chat.id,"Добро пожаловать в KetOS! Как тебя зовут?", reply_markup=types.ReplyKeyboardRemove())
+            u["lang"]="ru"
+            if u.get("name"):
+                set_state(uid,"menu")
+                bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb())
+            else:
+                set_state(uid,"ask_name")
+                bot.send_message(msg.chat.id,"Добро пожаловать в KetOS! Как тебя зовут?", reply_markup=types.ReplyKeyboardRemove())
         elif text == "Язык / Language":
             set_state(uid,"switch_lang")
             bot.send_message(msg.chat.id,"Choose / Выбери:", reply_markup=lang_kb())
@@ -612,11 +624,17 @@ def handle_all(msg):
     if state == "switch_lang":
         if text == "English":
             u["lang"]="en"
+            set_state(uid,"menu")
             bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb())
-        else:
+        elif text == "Русский":
             u["lang"]="ru"
+            set_state(uid,"menu")
             bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb())
-        set_state(uid,"menu"); return
+        else:
+            # Любая другая кнопка — просто возврат в меню
+            set_state(uid,"menu")
+            bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb())
+        return
 
     # ======================== ОНБОРДИНГ ========================
     if state == "ask_name":
@@ -1051,14 +1069,45 @@ def handle_all(msg):
     if text == "Настройки":
         g = L(u,"Мужской" if u.get("gender")=="male" else "Женский",
                 "Male" if u.get("gender")=="male" else "Female")
+        goal_now = u.get("goal") or L(u,"Не указана","Not set")
         bot.send_message(msg.chat.id,
             f"{L(u,'Настройки','Settings')}\n\n"
             f"{u.get('name','—')} | {g}\n"
             f"{u.get('weight','—')}kg | {u.get('height','—')}cm | {int(u.get('age',0))}y\n"
-            f"Sport: {u.get('sport_type','—')} | Goal: {u.get('goal','—')}\n"
+            f"Sport: {u.get('sport_type','—')}\n"
+            f"Goal: {goal_now}\n"
             f"Mode: {u.get('keto_level','—')}\n\n"
             f"Targets: {u['cal_target']}kcal | F:{u['fat_target']}g | P:{u['protein_target']}g | C:{u['carbs_target']}g",
             reply_markup=settings_kb())
+        return
+
+    if text == "Изменить цель":
+        set_state(uid,"change_goal")
+        bot.send_message(msg.chat.id,
+            L(u,f"Текущая цель: {u.get('goal','Не указана')}\n\nВыбери новую:",
+                f"Current goal: {u.get('goal','Not set')}\n\nChoose new:"),
+            reply_markup=goal_kb(u["lang"]))
+        return
+
+    if state == "change_goal":
+        u["goal"] = text
+        m = apply_macros(u); set_state(uid,"menu")
+        bot.send_message(msg.chat.id,
+            f"{L(u,'Цель изменена','Goal changed')}: {text}\n"
+            f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
+            f"BMR:{m['bmr']} TDEE:{m['tdee']}",
+            reply_markup=main_kb())
+        return
+
+    if state == "ask_goal_after_edit":
+        u["goal"] = text
+        m=apply_macros(u); set_state(uid,"menu")
+        bot.send_message(msg.chat.id,
+            f"{L(u,'Готово!','Done!')} {u['weight']}kg {u['height']}cm {int(u['age'])}y\n"
+            f"{L(u,'Цель','Goal')}: {u['goal']}\n"
+            f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
+            f"BMR:{m['bmr']} TDEE:{m['tdee']}",
+            reply_markup=main_kb())
         return
 
     if text == "Изменить пол":
@@ -1089,14 +1138,33 @@ def handle_all(msg):
             nums=[float(x) for x in text.split() if re.sub(r'[^\d.]','',x)]
             if len(nums)<3: raise ValueError()
             u["weight"]=nums[0]; u["height"]=nums[1]; u["age"]=nums[2]
+            # Если цель не установлена — спросить
+            if not u.get("goal"):
+                set_state(uid,"ask_goal_after_edit")
+                bot.send_message(msg.chat.id,
+                    L(u,"Данные сохранены. Теперь укажи цель:","Data saved. Now choose your goal:"),
+                    reply_markup=goal_kb(u["lang"]))
+                return
             m=apply_macros(u); set_state(uid,"menu")
             bot.send_message(msg.chat.id,
                 f"{L(u,'Обновлено!','Updated!')} {u['weight']}kg {u['height']}cm {int(u['age'])}y\n"
+                f"{L(u,'Цель','Goal')}: {u.get('goal','—')}\n"
                 f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
                 f"BMR:{m['bmr']} TDEE:{m['tdee']}",
                 reply_markup=main_kb())
         except:
             bot.send_message(msg.chat.id, L(u,"Пример: 68 166 49","Example: 68 166 49"))
+        return
+
+    if state == "ask_goal_after_edit":
+        u["goal"] = text
+        m=apply_macros(u); set_state(uid,"menu")
+        bot.send_message(msg.chat.id,
+            f"{L(u,'Готово!','Done!')} {u['weight']}kg {u['height']}cm {int(u['age'])}y\n"
+            f"{L(u,'Цель','Goal')}: {u['goal']}\n"
+            f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
+            f"BMR:{m['bmr']} TDEE:{m['tdee']}",
+            reply_markup=main_kb())
         return
 
     if text == "Изменить режим питания":
@@ -1130,8 +1198,16 @@ def handle_all(msg):
         return
 
     if text == "Пересчитать автоматически":
+        if not u.get("goal"):
+            set_state(uid,"ask_goal_after_edit")
+            bot.send_message(msg.chat.id, L(u,"Укажи цель:","Choose goal:"), reply_markup=goal_kb(u["lang"]))
+            return
         m=apply_macros(u); set_state(uid,"menu")
-        bot.send_message(msg.chat.id, f"{L(u,'Пересчитано','Recalculated')}!\n{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\nBMR:{m['bmr']} TDEE:{m['tdee']}", reply_markup=main_kb())
+        bot.send_message(msg.chat.id,
+            f"{L(u,'Пересчитано','Recalculated')}!\n"
+            f"{L(u,'Цель','Goal')}: {u.get('goal','—')}\n"
+            f"{m['calories']}kcal | F:{m['fat']}g P:{m['protein']}g C:{m['carbs']}g\n"
+            f"BMR:{m['bmr']} TDEE:{m['tdee']}", reply_markup=main_kb())
         return
 
     if text == "Сбросить день":
