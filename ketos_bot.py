@@ -655,6 +655,33 @@ def handle_all(msg):
         bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb(u.get("lang","ru")))
         return
 
+    # ======================== ЯЗЫК — ПЕРВЫМ, до перевода ========================
+    if text in ["Язык / Language", "Language"] or state in ["ask_lang", "switch_lang"]:
+        if text in ["Язык / Language", "Language"]:
+            set_state(uid, "switch_lang")
+            bot.send_message(msg.chat.id, "Choose / Выбери:", reply_markup=lang_kb())
+            return
+        if text == "English":
+            u["lang"] = "en"
+            set_state(uid, "menu" if u.get("name") else "ask_name")
+            if u.get("name"):
+                bot.send_message(msg.chat.id, "Language set to English!", reply_markup=main_kb("en"))
+            else:
+                bot.send_message(msg.chat.id, "Welcome to KetOS! What's your name?", reply_markup=types.ReplyKeyboardRemove())
+            return
+        if text == "Русский":
+            u["lang"] = "ru"
+            set_state(uid, "menu" if u.get("name") else "ask_name")
+            if u.get("name"):
+                bot.send_message(msg.chat.id, "Язык изменён на русский!", reply_markup=main_kb("ru"))
+            else:
+                bot.send_message(msg.chat.id, "Добро пожаловать в KetOS! Как тебя зовут?", reply_markup=types.ReplyKeyboardRemove())
+            return
+        if state in ["ask_lang", "switch_lang"]:
+            set_state(uid, "menu")
+            bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb(u.get("lang","ru")))
+            return
+
     # Map English button texts to Russian equivalents for unified handling
     EN_TO_RU = {
         "My status": "Мой статус",
@@ -670,7 +697,6 @@ def handle_all(msg):
         "Settings": "Настройки",
         "Restart": "Перезапуск",
         "Main menu": "Главное меню",
-        # Sport
         "Trail / Run": "Трейл / Бег",
         "Cycling race": "Велогонка",
         "Triathlon": "Триатлон",
@@ -678,11 +704,9 @@ def handle_all(msg):
         "Strength": "Силовая",
         "Back to ketosis": "Возврат в кетоз",
         "Ketosis recovery plan": "План возврата в кетоз",
-        # Photo confirm
         "Add to diary": "Добавить в дневник",
         "Correct": "Скорректировать",
         "Cancel": "Отмена",
-        # Settings
         "Change weight / height / age": "Изменить вес / рост / возраст",
         "Change goal": "Изменить цель",
         "Change gender": "Изменить пол",
@@ -690,10 +714,8 @@ def handle_all(msg):
         "Change targets manually": "Изменить цели вручную",
         "Recalculate automatically": "Пересчитать автоматически",
         "Reset day": "Сбросить день",
-        # Gender
         "Female": "Женский",
         "Male": "Мужской",
-        # Alcohol
         "Dry wine 150ml": "Сухое вино 150мл",
         "Semi-dry wine 150ml": "Полусухое вино 150мл",
         "Light beer 330ml": "Пиво светлое 330мл",
@@ -703,56 +725,16 @@ def handle_all(msg):
         "Champagne 150ml": "Шампанское 150мл",
         "Several beers 700ml": "Несколько пив 700мл",
         "Enter manually": "Ввести вручную",
-        # Portions
         "1 serving": "1 порция",
         "2 servings": "2 порции",
         "3 servings": "3 порции",
-        # Search
         "Искать снова / Search again": "Искать снова",
         "Главное меню / Main menu": "Главное меню",
     }
-    # Translate EN button to RU for unified processing
     if text in EN_TO_RU:
         text = EN_TO_RU[text]
 
-    # ======================== ЯЗЫК ========================
-    if state == "ask_lang" or text in ["Русский","English","Язык / Language"]:
-        if text == "English":
-            u["lang"]="en"
-            # Если уже зарегистрирован — просто подтверждаем язык
-            if u.get("name"):
-                set_state(uid,"menu")
-                bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb(u.get("lang","ru")))
-            else:
-                set_state(uid,"ask_name")
-                bot.send_message(msg.chat.id,"Welcome to KetOS! What's your name?", reply_markup=types.ReplyKeyboardRemove())
-        elif text == "Русский":
-            u["lang"]="ru"
-            if u.get("name"):
-                set_state(uid,"menu")
-                bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb(u.get("lang","ru")))
-            else:
-                set_state(uid,"ask_name")
-                bot.send_message(msg.chat.id,"Добро пожаловать в KetOS! Как тебя зовут?", reply_markup=types.ReplyKeyboardRemove())
-        elif text == "Язык / Language":
-            set_state(uid,"switch_lang")
-            bot.send_message(msg.chat.id,"Choose / Выбери:", reply_markup=lang_kb())
-        return
-
-    if state == "switch_lang":
-        if text == "English":
-            u["lang"]="en"
-            set_state(uid,"menu")
-            bot.send_message(msg.chat.id,"Language set to English!", reply_markup=main_kb(u.get("lang","ru")))
-        elif text == "Русский":
-            u["lang"]="ru"
-            set_state(uid,"menu")
-            bot.send_message(msg.chat.id,"Язык изменён на русский!", reply_markup=main_kb(u.get("lang","ru")))
-        else:
-            # Любая другая кнопка — просто возврат в меню
-            set_state(uid,"menu")
-            bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb(u.get("lang","ru")))
-        return
+    # ======================== ЯЗЫК (убрано — обработано выше) ========================
 
     # ======================== ОНБОРДИНГ ========================
     if state == "ask_name":
