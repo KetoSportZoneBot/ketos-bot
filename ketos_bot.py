@@ -221,10 +221,10 @@ def confirm_photo_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     if lang == "en":
         kb.row("Add to diary", "Correct")
-        kb.row("Cancel")
+        kb.row("Cancel", "Main menu")
     else:
         kb.row("Добавить в дневник", "Скорректировать")
-        kb.row("Отмена")
+        kb.row("Отмена", "Главное меню")
     return kb
 
 def settings_kb(lang="ru"):
@@ -619,9 +619,12 @@ def handle_photo(msg):
             bot.send_message(msg.chat.id,
                 f"{L(u,'Результат анализа','Analysis result')}:\n\n"
                 f"{L(u,'Блюдо','Dish')}: {dishes}\n\n"
-                f"Calories: {result['calories']} kcal\n"
-                f"Fat: {result['fat']}g | Protein: {result['protein']}g | Carbs: {result['carbs']}g\n\n"
-                f"{warn}{note}\n\n{L(u,'Всё верно?','Is this correct?')}",
+                f"{L(u,'Калории','Calories')}: {result['calories']} kcal\n"
+                f"{L(u,'Жиры','Fat')}: {result['fat']}g | "
+                f"{L(u,'Белки','Protein')}: {result['protein']}g | "
+                f"{L(u,'Углеводы','Carbs')}: {result['carbs']}g\n\n"
+                f"{warn}{note}\n\n"
+                f"{L(u,'Всё верно?','Is this correct?')}",
                 reply_markup=confirm_photo_kb(u.get("lang","ru")))
         except Exception as e:
             print(f"Photo thread error: {e}")
@@ -1006,7 +1009,7 @@ def handle_all(msg):
                 f"{L(u,'Текущие','Current')}: F:{f['fat']}g P:{f['protein']}g C:{f['carbs']}g {f['calories']}kcal\n\n"
                 f"{L(u,'Напиши: название жиры белки углеводы','Write: name fat protein carbs')}\n\n"
                 f"{L(u,'Пример: рыба с овощами 12 25 8','Example: fish with veggies 12 25 8')}\n\n"
-                f"{L(u,'Или нажми Отмена','Or press Отмена')}",
+                f"{L(u,'Или нажми Отмена / Главное меню','Or press Cancel / Main menu')}",
                 reply_markup=confirm_photo_kb(u.get("lang","ru")))
             return
         if text == "Отмена":
@@ -1041,8 +1044,12 @@ def handle_all(msg):
     # ======================== КЕТОНЫ ========================
     if text == "Кетоны":
         set_state(uid,"ketones")
-        bot.send_message(msg.chat.id, L(u,"Введи уровень кетонов (ммоль/л), например: 1.8",
-                                          "Enter ketone level (mmol/L), e.g.: 1.8"))
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.row(L(u,"Главное меню","Main menu"))
+        bot.send_message(msg.chat.id,
+            L(u,"Введи уровень кетонов (ммоль/л)\nНапример: 1.8\n\nИли вернись в меню:",
+                "Enter ketone level (mmol/L)\nE.g.: 1.8\n\nOr go back:"),
+            reply_markup=kb)
         return
 
     if state == "ketones":
@@ -1054,7 +1061,7 @@ def handle_all(msg):
             elif val<3:   s=L(u,"Оптимальный кетоз! Продолжай!","Optimal ketosis! Keep going!")
             else:         s=L(u,"Глубокий кетоз. Пей воду + электролиты.","Deep ketosis. Drink water + electrolytes.")
             set_state(uid,"menu")
-            bot.send_message(msg.chat.id, f"{val} mmol/L\n{s}", reply_markup=main_kb(u.get("lang","ru")))
+            bot.send_message(msg.chat.id, f"{val} mmol/L — {s}", reply_markup=main_kb(u.get("lang","ru")))
         except:
             bot.send_message(msg.chat.id, L(u,"Введи число, например: 1.8","Enter number, e.g.: 1.8"))
         return
@@ -1104,7 +1111,9 @@ def handle_all(msg):
     # ======================== СПОРТ ========================
     if text == "Спорт":
         set_state(uid,"sport")
-        bot.send_message(msg.chat.id, L(u,"Выбери активность:","Choose activity:"), reply_markup=sport_kb(u.get("lang","ru")))
+        bot.send_message(msg.chat.id,
+            L(u,"Выбери активность:","Choose activity:"),
+            reply_markup=sport_kb(u.get("lang","ru")))
         return
 
     if text in ["Возврат в кетоз","План возврата в кетоз"]:
@@ -1122,8 +1131,12 @@ def handle_all(msg):
 
     if text in ["Трейл / Бег","Велогонка","Триатлон","Лыжи"]:
         u["sport_type_race"]=text; set_state(uid,"ask_distance")
-        bot.send_message(msg.chat.id, L(u,"Дистанция или время?\nПример: 42 км или 3 часа",
-                                          "Distance or time?\nExample: 42 km or 3 hours"))
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.row(L(u,"Главное меню","Main menu"))
+        bot.send_message(msg.chat.id,
+            L(u,"Дистанция или время?\nПример: 42 км или 3 часа",
+                "Distance or time?\nExample: 42 km or 3 hours"),
+            reply_markup=kb)
         return
 
     if state == "ask_distance":
@@ -1142,12 +1155,18 @@ def handle_all(msg):
                 tm=int(hours*times[min(i,3)]*60)
                 lbl=L(u,"За 30 мин до старта","30 min before start") if i==0 else L(u,f"Через {tm} мин",f"After {tm} min")
                 lines.append(f"{lbl}: Gel #{i+1} — 20g\n")
-            lines.append(L(u,f"\nИтого: {total}г углеводов\nВозврат в кетоз: ~{max(4,int(total/15))} часов\n\nПосле финиша нажми: План возврата в кетоз",
-                             f"\nTotal: {total}g carbs\nBack to ketosis: ~{max(4,int(total/15))} hours\n\nAfter finish press: Plan возврата в кетоз"))
+            back_btn = L(u,"Возврат в кетоз","Back to ketosis")
+            lines.append(L(u,
+                f"\nИтого: {total}г углеводов\nВозврат в кетоз: ~{max(4,int(total/15))} часов\n\nПосле финиша нажми кнопку ниже:",
+                f"\nTotal: {total}g carbs\nBack to ketosis: ~{max(4,int(total/15))} hours\n\nAfter finish press button below:"))
             set_state(uid,"menu")
             bot.send_message(msg.chat.id,"".join(lines),reply_markup=after_gel_kb(u.get("lang","ru")))
         except:
-            bot.send_message(msg.chat.id, L(u,"Пример: 42 км или 3 часа","Example: 42 km or 3 hours"))
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row(L(u,"Главное меню","Main menu"))
+            bot.send_message(msg.chat.id,
+                L(u,"Пример: 42 км или 3 часа","Example: 42 km or 3 hours"),
+                reply_markup=kb)
         return
 
     # ======================== ИИ СОВЕТНИК ========================
