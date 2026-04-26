@@ -5,7 +5,7 @@ import os
 import re
 import threading
 
-TOKEN = os.environ.get("TOKEN", "8758161336:AAF3cFGkiBWThibk9rfCWdMj8-2RDh4EvB4")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 LOGMEAL_TOKEN = os.environ.get("LOGMEAL_TOKEN", "a50507ce2019da95e0341da750d887449d40df54")
 bot = telebot.TeleBot(TOKEN)
 
@@ -583,9 +583,63 @@ def profile_text(u, m):
             f"Жиры: {m['fat']}г | Белки: {m['protein']}г | Углеводы: {m['carbs']}г\n\n"
             f"BMR: {m['bmr']} ккал | TDEE: {m['tdee']} ккал\n\nПоехали!")
 
-# ============================================================
-# PHOTO HANDLER
-# ============================================================
+def ask_claude(u, user_message):
+    """Real Claude AI for keto advice"""
+    lang = u.get("lang", "ru")
+    fat_left     = max(0, u["fat_target"]     - u["fat"])
+    protein_left = max(0, u["protein_target"] - u["protein"])
+    carbs_left   = max(0, u["carbs_target"]   - u["carbs"])
+    cal_left     = max(0, u["cal_target"]      - u["calories"])
+
+    if lang == "en":
+        system = (
+            f"You are KetOS — an expert AI coach for keto diet and sport. "
+            f"Be concise, practical, friendly. Max 200 words.\n\n"
+            f"User profile: gender={u.get('gender','?')}, weight={u.get('weight','?')}kg, "
+            f"height={u.get('height','?')}cm, age={u.get('age','?')}y, "
+            f"sport={u.get('sport_type','?')}, goal={u.get('goal','?')}, "
+            f"keto mode={u.get('keto_level','?')}\n\n"
+            f"Today remaining: {cal_left}kcal | Fat:{fat_left}g | Protein:{protein_left}g | Carbs:{carbs_left}g\n"
+            f"Ketones: {u.get('ketones',0)} mmol/L\n\n"
+            f"Answer in English."
+        )
+    else:
+        system = (
+            f"Ты KetOS — эксперт-тренер по кето-диете и спорту. "
+            f"Отвечай кратко, практично, дружелюбно. Максимум 200 слов.\n\n"
+            f"Профиль: пол={u.get('gender','?')}, вес={u.get('weight','?')}кг, "
+            f"рост={u.get('height','?')}см, возраст={u.get('age','?')}лет, "
+            f"спорт={u.get('sport_type','?')}, цель={u.get('goal','?')}, "
+            f"режим кето={u.get('keto_level','?')}\n\n"
+            f"Остаток на сегодня: {cal_left}ккал | Жиры:{fat_left}г | Белки:{protein_left}г | Углеводы:{carbs_left}г\n"
+            f"Кетоны: {u.get('ketones',0)} ммоль/л\n\n"
+            f"Отвечай на русском языке."
+        )
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 400,
+                "system": system,
+                "messages": [{"role": "user", "content": user_message}]
+            },
+            timeout=30
+        )
+        data = r.json()
+        if r.status_code == 200:
+            return data["content"][0]["text"]
+        else:
+            print(f"Claude API error: {data}")
+            return None
+    except Exception as e:
+        print(f"Claude API exception: {e}")
+        return None
 
 @bot.message_handler(content_types=["photo"])
 def handle_photo(msg):
@@ -733,6 +787,10 @@ def handle_all(msg):
         "3 servings": "3 порции",
         "Искать снова / Search again": "Искать снова",
         "Главное меню / Main menu": "Главное меню",
+        "Ask more": "Ещё вопрос",
+        "What to eat today?": "Что съесть сегодня?",
+        "How to speed up ketosis?": "Как ускорить кетоз?",
+        "Training tips": "Советы для тренировки",
     }
     if text in EN_TO_RU:
         text = EN_TO_RU[text]
@@ -1171,8 +1229,66 @@ def handle_all(msg):
 
     # ======================== ИИ СОВЕТНИК ========================
     if text == "ИИ Советник":
-        bot.send_message(msg.chat.id, ai_advisor_text(u), reply_markup=main_kb(u.get("lang","ru")))
+        set_state(uid, "ai_chat")
+        kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        kb.row(L(u,"Что съесть сегодня?","What to eat today?"))
+        kb.row(L(u,"Как ускорить кетоз?","How to speed up ketosis?"))
+        kb.row(L(u,"Советы для тренировки","Training tips"))
+        kb.row(L(u,"Главное меню","Main menu"))
+        bot.send_message(msg.chat.id,
+            L(u,
+              "🤖 ИИ Советник на базе Claude AI\n\n"
+              "Задай любой вопрос про кето, питание, спорт!\n"
+              "Или выбери быстрый вопрос:",
+              "🤖 AI Adviser powered by Claude AI\n\n"
+              "Ask any question about keto, nutrition, sport!\n"
+              "Or choose a quick question:"),
+            reply_markup=kb)
         return
+
+    if state == "ai_chat":
+        bot.send_message(msg.chat.id,
+            L(u,"⏳ Думаю...","⏳ Thinking..."))
+
+        def do_claude():
+            try:
+                # Use local advisor if no API key
+                if not ANTHROPIC_API_KEY:
+                    response = ai_advisor_text(u)
+                else:
+                    response = ask_claude(u, text)
+                    if not response:
+                        response = ai_advisor_text(u)
+
+                kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                kb.row(L(u,"Ещё вопрос","Ask more"))
+                kb.row(L(u,"Главное меню","Main menu"))
+                bot.send_message(msg.chat.id,
+                    f"🤖 {response}",
+                    reply_markup=kb)
+                set_state(uid, "ai_chat_response")
+            except Exception as e:
+                print(f"AI chat error: {e}")
+                bot.send_message(msg.chat.id,
+                    L(u,"Ошибка. Попробуй ещё раз.","Error. Try again."),
+                    reply_markup=main_kb(u.get("lang","ru")))
+                set_state(uid, "menu")
+
+        threading.Thread(target=do_claude, daemon=True).start()
+        return
+
+    if state == "ai_chat_response":
+        if text in [L(u,"Ещё вопрос","Ask more")]:
+            set_state(uid, "ai_chat")
+            kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            kb.row(L(u,"Что съесть сегодня?","What to eat today?"))
+            kb.row(L(u,"Как ускорить кетоз?","How to speed up ketosis?"))
+            kb.row(L(u,"Советы для тренировки","Training tips"))
+            kb.row(L(u,"Главное меню","Main menu"))
+            bot.send_message(msg.chat.id,
+                L(u,"Задай следующий вопрос:","Ask your next question:"),
+                reply_markup=kb)
+            return
 
     # ======================== СЕМЬЯ ========================
     if text == "Семья":
