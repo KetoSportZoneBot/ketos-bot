@@ -431,6 +431,7 @@ def analyze_photo(image_bytes):
                 json={
                     "model": "claude-haiku-4-5-20251001",
                     "max_tokens": 300,
+                    "system": "You are a nutrition expert. Analyze food photos and give accurate macro estimates.",
                     "messages": [{
                         "role": "user",
                         "content": [
@@ -564,35 +565,32 @@ def ask_claude(u, question):
     cl=max(0,u["carbs_target"]-u["carbs"])
     kl=max(0,u["cal_target"]-u["calories"])
     if lang=="en":
-        system=(f"You are KetOS — expert keto coach for athletes. "
-                f"Give SPECIFIC, PRACTICAL answers with numbers and timeframes. Max 300 words.\n"
+        system=(f"You are KetOS — expert keto coach. Give SPECIFIC answers with numbers and timeframes. Max 250 words.\n"
                 f"User: {u.get('gender','?')}, {u.get('weight','?')}kg, {u.get('height','?')}cm, "
                 f"{u.get('age','?')}y, sport={u.get('sport_type','?')}, goal={u.get('goal','?')}, "
-                f"keto={u.get('keto_level','?')}, ketones={u.get('ketones',0)}mmol/L\n"
-                f"Remaining: {kl}kcal | Fat:{fl}g | Protein:{pl}g | Carbs:{cl}g\n"
-                f"Answer the question DIRECTLY. If about ketosis entry — give exact plan with "
-                f"fasting hours, exercise type, sauna protocol, food. Use bullet points. Answer in English.")
+                f"ketones={u.get('ketones',0)}mmol/L\n"
+                f"Remaining: {kl}kcal F:{fl}g P:{pl}g C:{cl}g\n"
+                f"Answer DIRECTLY. For ketosis entry: give fasting hours, exercise, sauna, food. Use bullet points. Answer in English.")
     else:
-        system=(f"Ты KetOS — эксперт по кето-диете для спортсменов. "
-                f"Давай КОНКРЕТНЫЕ ответы с цифрами и временными рамками. Максимум 300 слов.\n"
+        system=(f"Ты KetOS — эксперт по кето для спортсменов. Давай КОНКРЕТНЫЕ ответы с цифрами. Максимум 250 слов.\n"
                 f"Пользователь: {u.get('gender','?')}, {u.get('weight','?')}кг, {u.get('height','?')}см, "
                 f"{u.get('age','?')}лет, спорт={u.get('sport_type','?')}, цель={u.get('goal','?')}, "
-                f"кето={u.get('keto_level','?')}, кетоны={u.get('ketones',0)}ммоль/л\n"
-                f"Остаток: {kl}ккал | Ж:{fl}г | Б:{pl}г | У:{cl}г\n"
-                f"Отвечай на вопрос КОНКРЕТНО. Если про вход в кетоз — давай план: "
-                f"голодание (сколько часов), тренировка (тип и длительность), сауна, питание. "
-                f"Используй маркированный список. Отвечай на русском.")
+                f"кетоны={u.get('ketones',0)}ммоль/л\n"
+                f"Остаток: {kl}ккал Ж:{fl}г Б:{pl}г У:{cl}г\n"
+                f"Отвечай КОНКРЕТНО. Для входа в кетоз: голодание (часы), тренировка (тип/длительность), сауна, питание. Маркированный список. Отвечай на русском.")
     try:
         r=requests.post("https://api.anthropic.com/v1/messages",
-            headers={"x-api-key":ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01",
+            headers={"x-api-key":ANTHROPIC_API_KEY,
+                     "anthropic-version":"2023-06-01",
                      "content-type":"application/json"},
-            json={"model":"claude-haiku-4-5-20251001","max_tokens":500,
-                  "system":system,"messages":[{"role":"user","content":question}]},
+            json={"model":"claude-haiku-4-5-20251001",
+                  "max_tokens":500,
+                  "system": system,
+                  "messages":[{"role":"user","content":question}]},
             timeout=30)
-        print(f"Claude: {r.status_code}")
+        print(f"Claude API: {r.status_code} | {r.text[:300]}")
         if r.status_code==200:
             return r.json()["content"][0]["text"]
-        print(f"Claude err: {r.text[:200]}")
         return None
     except Exception as e:
         print(f"Claude exc: {e}"); return None
