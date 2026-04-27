@@ -687,7 +687,12 @@ def handle_all(msg):
     lang=u.get("lang","ru")
 
     # ===== GLOBAL BACK — works from ANY state =====
-    if text in [BACK_RU, BACK_EN, "Перезапуск", "Restart", "Main menu", "Главное меню"]:
+    # Check multiple ways - strip all unicode variations
+    text_clean = text.replace("◀","").replace("◄","").replace("←","").strip().lower()
+    is_back = (text in [BACK_RU, BACK_EN] or
+               text_clean in ["главное меню", "main menu", "перезапуск", "restart"] or
+               "главное меню" in text.lower() or "main menu" in text.lower())
+    if is_back:
         set_state(uid,"menu")
         bot.send_message(msg.chat.id, L(u,"Главное меню:","Main menu:"), reply_markup=main_kb(lang))
         return
