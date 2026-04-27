@@ -447,13 +447,14 @@ def analyze_photo(image_bytes):
                                 "type": "text",
                                 "text": (
                                     "Identify this dish and estimate nutritional values for the ENTIRE portion shown.\n"
-                                    "Reply ONLY in this exact format (numbers only, no units):\n"
-                                    "DISH: [dish name in English]\n"
+                                    "Reply ONLY in this exact format (numbers only, no units in number fields):\n"
+                                    "DISH_EN: [dish name in English]\n"
+                                    "DISH_RU: [название блюда на русском]\n"
                                     "CALORIES: [number]\n"
                                     "FAT: [number]\n"
                                     "PROTEIN: [number]\n"
                                     "CARBS: [number]\n\n"
-                                    "Be accurate for Asian dishes: congee, rice soup, pad thai, tom yum etc.\n"
+                                    "Be accurate. Know Asian dishes: congee=рисовый суп, pad thai=пад тай, tom yum=том ям etc.\n"
                                     "Estimate for the full bowl/plate visible, not per 100g."
                                 )
                             }
@@ -469,13 +470,19 @@ def analyze_photo(image_bytes):
 
                 # Parse response
                 lines = response_text.strip().split('\n')
-                dish_name = "Dish"
+                dish_en = "Dish"
+                dish_ru = "Блюдо"
                 calories = fat = protein = carbs = 0
 
                 for line in lines:
                     line = line.strip()
-                    if line.startswith("DISH:"):
-                        dish_name = line.replace("DISH:", "").strip()
+                    if line.startswith("DISH_EN:"):
+                        dish_en = line.replace("DISH_EN:", "").strip()
+                    elif line.startswith("DISH_RU:"):
+                        dish_ru = line.replace("DISH_RU:", "").strip()
+                    elif line.startswith("DISH:"):
+                        dish_en = line.replace("DISH:", "").strip()
+                        dish_ru = dish_en
                     elif line.startswith("CALORIES:"):
                         try: calories = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
                         except: pass
@@ -490,12 +497,13 @@ def analyze_photo(image_bytes):
                         except: pass
 
                 if calories > 0 or fat > 0 or protein > 0:
-                    # Recalculate calories from macros for accuracy
                     calc_cal = fat*9 + protein*4 + carbs*4
                     if calc_cal > 50:
                         calories = calc_cal
                     return {
-                        "dishes": [dish_name],
+                        "dishes": [dish_ru, dish_en],  # [0]=RU, [1]=EN
+                        "dish_ru": dish_ru,
+                        "dish_en": dish_en,
                         "calories": round(calories),
                         "fat": round(fat, 1),
                         "protein": round(protein, 1),
@@ -595,7 +603,174 @@ def ask_claude(u, question):
     except Exception as e:
         print(f"Claude exc: {e}"); return None
 
-def meal_plan_text(u):
+def keto_advice_text(u, question):
+    """Specific keto advice without Claude API"""
+    lang = u.get("lang","ru")
+    w = u.get("weight", 70)
+    q = question.lower()
+
+    # Detect question type
+    is_ketosis = any(x in q for x in ["кетоз","ketosis","войти","enter","ускор","speed","fast","саун","sauna","голод","fasting"])
+    is_food = any(x in q for x in ["съесть","eat","еда","food","питание","nutrition","макрос","macro"])
+    is_training = any(x in q for x in ["трениров","train","спорт","sport","workout","упражн","exercise"])
+    is_alcohol = any(x in q for x in ["алкоголь","alcohol","вино","wine","пиво","beer"])
+
+    if is_ketosis:
+        if lang == "en":
+            return (
+                f"🚀 Fast Ketosis Entry Plan (24-48h)\n\n"
+                f"⏰ HOUR 0-16: FASTING\n"
+                f"• Drink only water, black coffee, herbal tea\n"
+                f"• Zero calories — depletes glycogen stores\n"
+                f"• Add salt to water (electrolytes!)\n\n"
+                f"🏃 HOUR 3-4: EXERCISE\n"
+                f"• 45-60 min cardio (run, bike, swim)\n"
+                f"• Or HIIT: 8×20 sec sprint + 40 sec rest\n"
+                f"• Burns remaining glucose fast\n\n"
+                f"🧖 HOUR 6-8: SAUNA\n"
+                f"• 3 rounds × 15 min at 80-90°C\n"
+                f"• 5 min cold shower between rounds\n"
+                f"• Accelerates metabolism, burns glycogen\n\n"
+                f"🥩 FIRST MEAL (after 16h):\n"
+                f"• 2 eggs + bacon + avocado\n"
+                f"• Zero carbs! Fat + protein only\n"
+                f"• Add MCT oil (1 tbsp) to coffee\n\n"
+                f"📊 RESULT:\n"
+                f"• Ketones appear: 12-24h\n"
+                f"• Optimal ketosis (1.5+ mmol/L): 24-48h\n"
+                f"• Measure ketones every 12h\n\n"
+                f"💊 MUST HAVE: Salt, magnesium, potassium!"
+            )
+        else:
+            return (
+                f"🚀 План быстрого входа в кетоз (24-48ч)\n\n"
+                f"⏰ ЧАСЫ 0-16: ГОЛОДАНИЕ\n"
+                f"• Только вода, чёрный кофе, травяной чай\n"
+                f"• Ноль калорий — опустошает запасы гликогена\n"
+                f"• Добавляй соль в воду (электролиты!)\n\n"
+                f"🏃 ЧАСЫ 3-4: ТРЕНИРОВКА\n"
+                f"• 45-60 мин кардио (бег, велик, плавание)\n"
+                f"• Или ВИИТ: 8×20 сек спринт + 40 сек отдых\n"
+                f"• Сжигает остатки глюкозы быстро\n\n"
+                f"🧖 ЧАСЫ 6-8: САУНА\n"
+                f"• 3 захода × 15 мин при 80-90°C\n"
+                f"• 5 мин холодный душ между заходами\n"
+                f"• Ускоряет метаболизм, сжигает гликоген\n\n"
+                f"🥩 ПЕРВЫЙ ПРИЁМ (после 16ч):\n"
+                f"• 2 яйца + бекон + авокадо\n"
+                f"• Ноль углеводов! Только жир + белок\n"
+                f"• MCT масло (1 ст.л.) в кофе\n\n"
+                f"📊 РЕЗУЛЬТАТ:\n"
+                f"• Кетоны появятся: через 12-24ч\n"
+                f"• Оптимальный кетоз (1.5+ ммоль/л): через 24-48ч\n"
+                f"• Измеряй кетоны каждые 12ч\n\n"
+                f"💊 ОБЯЗАТЕЛЬНО: Соль, магний, калий!"
+            )
+    elif is_training:
+        if lang == "en":
+            return (
+                f"🏋️ Training on Keto — Specific Plan\n\n"
+                f"BEFORE (30-60 min before):\n"
+                f"• Coffee + 1 tbsp MCT oil\n"
+                f"• Or: 2 boiled eggs\n"
+                f"• No carbs before training!\n\n"
+                f"DURING:\n"
+                f"• Water + electrolytes (salt, magnesium)\n"
+                f"• For sessions >90 min: 1 gel (20g carbs)\n\n"
+                f"AFTER (within 30 min):\n"
+                f"• 30-40g protein: chicken/fish/eggs\n"
+                f"• For strength: add 15-20g carbs (berries)\n"
+                f"• For cardio: zero carbs\n\n"
+                f"BEST WORKOUTS ON KETO:\n"
+                f"✅ Long cardio (60+ min) — uses fat as fuel\n"
+                f"✅ Strength (low reps, heavy weight)\n"
+                f"✅ HIIT after 2+ weeks on keto\n"
+                f"❌ Avoid: high-intensity intervals in first 2 weeks"
+            )
+        else:
+            return (
+                f"🏋️ Тренировки на кето — конкретный план\n\n"
+                f"ДО (за 30-60 мин):\n"
+                f"• Кофе + 1 ст.л. MCT масла\n"
+                f"• Или: 2 варёных яйца\n"
+                f"• Никаких углеводов перед тренировкой!\n\n"
+                f"ВО ВРЕМЯ:\n"
+                f"• Вода + электролиты (соль, магний)\n"
+                f"• Если >90 мин: 1 гель (20г углеводов)\n\n"
+                f"ПОСЛЕ (в течение 30 мин):\n"
+                f"• 30-40г белка: курица/рыба/яйца\n"
+                f"• Для силовых: добавь 15-20г углеводов (ягоды)\n"
+                f"• Для кардио: ноль углеводов\n\n"
+                f"ЛУЧШИЕ ТРЕНИРОВКИ НА КЕТО:\n"
+                f"✅ Длинное кардио (60+ мин) — жир как топливо\n"
+                f"✅ Силовые (малые повторения, большой вес)\n"
+                f"✅ ВИИТ после 2+ недель на кето\n"
+                f"❌ Избегай: интенсивные интервалы в первые 2 недели"
+            )
+    elif is_food:
+        return meal_plan_text(u)
+    elif is_alcohol:
+        if lang == "en":
+            return (
+                f"🍷 Alcohol on Keto — Rules\n\n"
+                f"✅ ALLOWED (carefully):\n"
+                f"• Dry wine: 1 glass (150ml) = 4g carbs\n"
+                f"• Whisky/Vodka/Cognac: 50ml = 0g carbs\n"
+                f"• Champagne: 150ml = 6g carbs\n\n"
+                f"❌ FORBIDDEN:\n"
+                f"• Beer (13-18g carbs per 330ml)\n"
+                f"• Sweet cocktails (25g+ carbs)\n"
+                f"• Liqueurs and sweet wines\n\n"
+                f"⚠️ REMEMBER:\n"
+                f"• Alcohol pauses fat burning for 2-4h\n"
+                f"• Eat fat + protein BEFORE drinking\n"
+                f"• Drink lots of water\n"
+                f"• Recovery to ketosis: 8-24h"
+            )
+        else:
+            return (
+                f"🍷 Алкоголь на кето — правила\n\n"
+                f"✅ МОЖНО (осторожно):\n"
+                f"• Сухое вино: 1 бокал (150мл) = 4г углеводов\n"
+                f"• Виски/Водка/Коньяк: 50мл = 0г углеводов\n"
+                f"• Шампанское: 150мл = 6г углеводов\n\n"
+                f"❌ НЕЛЬЗЯ:\n"
+                f"• Пиво (13-18г углеводов на 330мл)\n"
+                f"• Сладкие коктейли (25г+ углеводов)\n"
+                f"• Ликёры и сладкие вина\n\n"
+                f"⚠️ ПОМНИ:\n"
+                f"• Алкоголь останавливает сжигание жира на 2-4ч\n"
+                f"• Ешь жир + белок ДО употребления\n"
+                f"• Пей много воды\n"
+                f"• Возврат в кетоз: 8-24ч"
+            )
+    else:
+        # Generic keto tip
+        fl=max(0,u["fat_target"]-u["fat"])
+        pl=max(0,u["protein_target"]-u["protein"])
+        cl=max(0,u["carbs_target"]-u["carbs"])
+        if lang == "en":
+            return (
+                f"💡 Your Keto Status\n\n"
+                f"Remaining today:\n"
+                f"Fat: {fl}g | Protein: {pl}g | Carbs: {cl}g\n\n"
+                f"Top 3 keto tips:\n"
+                f"• Keep carbs under {u['carbs_target']}g/day\n"
+                f"• Drink 2-3L water + electrolytes daily\n"
+                f"• Measure ketones every morning\n\n"
+                f"Ask me: how to enter ketosis, what to eat, training tips!"
+            )
+        else:
+            return (
+                f"💡 Твой кето-статус\n\n"
+                f"Осталось сегодня:\n"
+                f"Жиры: {fl}г | Белки: {pl}г | Углеводы: {cl}г\n\n"
+                f"Топ-3 совета по кето:\n"
+                f"• Держи углеводы ниже {u['carbs_target']}г/день\n"
+                f"• Пей 2-3л воды + электролиты каждый день\n"
+                f"• Измеряй кетоны каждое утро\n\n"
+                f"Спроси меня: как войти в кетоз, что съесть, советы для тренировки!"
+            )
     lang=u.get("lang","ru")
     fl=max(0,u["fat_target"]-u["fat"])
     pl=max(0,u["protein_target"]-u["protein"])
@@ -715,16 +890,21 @@ def handle_photo(msg):
                     reply_markup=main_kb(u.get("lang","ru")))
                 set_state(uid,"menu"); return
             u["pending_food"]=result; set_state(uid,"confirm_photo")
-            dishes=", ".join(result["dishes"][:3])
+            # Show dish name in correct language
+            if u.get("lang") == "en":
+                dish_name = result.get("dish_en") or result["dishes"][1] if len(result["dishes"])>1 else result["dishes"][0]
+            else:
+                dish_name = result.get("dish_ru") or result["dishes"][0]
             warn=L(u,"Много углеводов!","High carbs!") if result["carbs"]>10 else L(u,"Кето-дружественно","Keto-friendly")
-            note=L(u,"\nМакросы примерные","\nMacros approximate") if result.get("from_fallback") else ""
+            note=L(u,"\n⚠️ Макросы примерные — скорректируй если нужно",
+                     "\n⚠️ Macros approximate — correct if needed") if result.get("from_fallback") else ""
             bot.send_message(msg.chat.id,
                 f"{L(u,'Результат анализа','Analysis result')}:\n\n"
-                f"{L(u,'Блюдо','Dish')}: {dishes}\n\n"
-                f"{L(u,'Калории','Calories')}: {result['calories']} kcal\n"
-                f"{L(u,'Жиры','Fat')}: {result['fat']}g | "
-                f"{L(u,'Белки','Protein')}: {result['protein']}g | "
-                f"{L(u,'Углеводы','Carbs')}: {result['carbs']}g\n\n"
+                f"{L(u,'Блюдо','Dish')}: {dish_name}\n\n"
+                f"{L(u,'Калории','Calories')}: {result['calories']} {L(u,'ккал','kcal')}\n"
+                f"{L(u,'Жиры','Fat')}: {result['fat']}г | "
+                f"{L(u,'Белки','Protein')}: {result['protein']}г | "
+                f"{L(u,'Углеводы','Carbs')}: {result['carbs']}г\n\n"
                 f"{warn}{note}\n\n{L(u,'Всё верно?','Is this correct?')}",
                 reply_markup=confirm_photo_kb(u.get("lang","ru")))
         except Exception as e:
@@ -1207,9 +1387,9 @@ def handle_all(msg):
                     bot.send_message(msg.chat.id,f"🤖 {response}",reply_markup=ai_after_kb(lng))
                     set_state(uid_,"ai_chat_response")
                 else:
-                    plan=meal_plan_text(usr)
-                    note=L(usr,"⚠️ Claude недоступен.\n\n","⚠️ Claude unavailable.\n\n")
-                    bot.send_message(msg.chat.id,note+plan,reply_markup=ai_after_kb(lng))
+                    # Use built-in specific advice
+                    advice = keto_advice_text(usr, q)
+                    bot.send_message(msg.chat.id, advice, reply_markup=ai_after_kb(lng))
                     set_state(uid_,"ai_chat_response")
             except Exception as e:
                 print(f"AI err: {e}")
