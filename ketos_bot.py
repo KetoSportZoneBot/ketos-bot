@@ -126,8 +126,12 @@ def back_kb(lang="ru"):
 
 def gender_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row(L({"lang":lang},"Женский","Female"), L({"lang":lang},"Мужской","Male"))
-    kb.row(back_btn(lang))
+    if lang == "en":
+        kb.row("Female", "Male")
+        kb.row("◀ Main menu")
+    else:
+        kb.row("Женский", "Мужской")
+        kb.row("◀ Главное меню")
     return kb
 
 def weight_kb(lang="ru"):
@@ -135,21 +139,21 @@ def weight_kb(lang="ru"):
     kb.row("50","55","60","65")
     kb.row("70","75","80","85")
     kb.row("90","95","100","110")
-    kb.row(back_btn(lang))
+    kb.row("◀ Главное меню" if lang != "en" else "◀ Main menu")
     return kb
 
 def height_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("155","160","165","170")
     kb.row("175","180","185","190")
-    kb.row(back_btn(lang))
+    kb.row("◀ Главное меню" if lang != "en" else "◀ Main menu")
     return kb
 
 def age_kb(lang="ru"):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("20","25","30","35")
     kb.row("40","45","50","55")
-    kb.row(back_btn(lang))
+    kb.row("◀ Главное меню" if lang != "en" else "◀ Main menu")
     return kb
 
 def activity_kb(lang="ru"):
