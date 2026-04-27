@@ -414,12 +414,99 @@ def get_fallback(dish_names):
 # ============================================================
 
 def analyze_photo(image_bytes):
+    """Use Claude Vision for accurate food analysis"""
     try:
+        import base64
+        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+
+        # Use Claude Vision if API key available
+        if ANTHROPIC_API_KEY:
+            r = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 300,
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": "image/jpeg",
+                                    "data": image_b64,
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Identify this dish and estimate nutritional values for the ENTIRE portion shown.\n"
+                                    "Reply ONLY in this exact format (numbers only, no units):\n"
+                                    "DISH: [dish name in English]\n"
+                                    "CALORIES: [number]\n"
+                                    "FAT: [number]\n"
+                                    "PROTEIN: [number]\n"
+                                    "CARBS: [number]\n\n"
+                                    "Be accurate for Asian dishes: congee, rice soup, pad thai, tom yum etc.\n"
+                                    "Estimate for the full bowl/plate visible, not per 100g."
+                                )
+                            }
+                        ]
+                    }]
+                },
+                timeout=30
+            )
+            print(f"Claude Vision: {r.status_code}")
+            if r.status_code == 200:
+                response_text = r.json()["content"][0]["text"]
+                print(f"Claude Vision response: {response_text}")
+
+                # Parse response
+                lines = response_text.strip().split('\n')
+                dish_name = "Dish"
+                calories = fat = protein = carbs = 0
+
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("DISH:"):
+                        dish_name = line.replace("DISH:", "").strip()
+                    elif line.startswith("CALORIES:"):
+                        try: calories = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
+                        except: pass
+                    elif line.startswith("FAT:"):
+                        try: fat = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
+                        except: pass
+                    elif line.startswith("PROTEIN:"):
+                        try: protein = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
+                        except: pass
+                    elif line.startswith("CARBS:"):
+                        try: carbs = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
+                        except: pass
+
+                if calories > 0 or fat > 0 or protein > 0:
+                    # Recalculate calories from macros for accuracy
+                    calc_cal = fat*9 + protein*4 + carbs*4
+                    if calc_cal > 50:
+                        calories = calc_cal
+                    return {
+                        "dishes": [dish_name],
+                        "calories": round(calories),
+                        "fat": round(fat, 1),
+                        "protein": round(protein, 1),
+                        "carbs": round(carbs, 1),
+                        "from_fallback": False
+                    }
+
+        # Fallback to LogMeal if no Claude key
         headers = {"Authorization": f"Bearer {LOGMEAL_TOKEN}"}
         files = {"image": ("food.jpg", image_bytes, "image/jpeg")}
         r1 = requests.post("https://api.logmeal.com/v2/image/segmentation/complete",
                            headers=headers, files=files, timeout=30)
-        print(f"LM1: {r1.status_code}")
         if r1.status_code != 200: return None
         d1 = r1.json(); image_id = d1.get("imageId")
         dish_names = [rec.get("name","") for seg in d1.get("segmentation_results",[])
@@ -430,28 +517,10 @@ def analyze_photo(image_bytes):
                            headers=headers, json={"imageId": image_id}, timeout=15)
         if r2.status_code == 200:
             n = r2.json().get("nutritional_info") or {}
-            fat  = float(n.get("totalFat",0) or 0)
-            prot = float(n.get("proteins",0) or 0)
-            carbs= float(n.get("totalCarbs",0) or 0)
-            cal  = float(n.get("calories",0) or 0)
-        if fat==0 and prot==0 and carbs==0:
-            r3 = requests.post("https://api.logmeal.com/v2/nutrition/recipe/ingredients",
-                               headers=headers, json={"imageId": image_id}, timeout=15)
-            if r3.status_code == 200:
-                for ing in r3.json().get("ingredients",[]):
-                    n = ing.get("nutritional_info",{})
-                    fat+=float(n.get("totalFat",0) or 0)
-                    prot+=float(n.get("proteins",0) or 0)
-                    carbs+=float(n.get("totalCarbs",0) or 0)
-                    cal+=float(n.get("calories",0) or 0)
-        # Sanity: always calc from macros
+            fat=float(n.get("totalFat",0) or 0); prot=float(n.get("proteins",0) or 0)
+            carbs=float(n.get("totalCarbs",0) or 0); cal=float(n.get("calories",0) or 0)
         calc_cal = fat*9+prot*4+carbs*4
         if calc_cal > 0: cal = calc_cal
-        # Fix drinks
-        drinks = ["coffee","tea","espresso","cappuccino","latte","americano"]
-        if any(d in " ".join(dish_names).lower() for d in drinks) and fat>5 and cal<80:
-            fat=round(fat*0.1,1); prot=round(prot*0.1,1)
-            cal=round(fat*9+prot*4+carbs*4)
         from_fallback = False
         if fat==0 and prot==0 and carbs==0:
             fb = get_fallback(dish_names)
@@ -462,7 +531,7 @@ def analyze_photo(image_bytes):
                 "fat": round(fat,1), "protein": round(prot,1), "carbs": round(carbs,1),
                 "from_fallback": from_fallback}
     except Exception as e:
-        print(f"LogMeal error: {e}"); return None
+        print(f"Photo analysis error: {e}"); return None
 
 def search_food(query):
     try:
