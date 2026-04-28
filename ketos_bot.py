@@ -572,36 +572,59 @@ def ask_claude(u, question):
     pl=max(0,u["protein_target"]-u["protein"])
     cl=max(0,u["carbs_target"]-u["carbs"])
     kl=max(0,u["cal_target"]-u["calories"])
+
     if lang=="en":
-        system=(f"You are KetOS — expert keto coach. Give SPECIFIC answers with numbers and timeframes. Max 250 words.\n"
-                f"User: {u.get('gender','?')}, {u.get('weight','?')}kg, {u.get('height','?')}cm, "
-                f"{u.get('age','?')}y, sport={u.get('sport_type','?')}, goal={u.get('goal','?')}, "
-                f"ketones={u.get('ketones',0)}mmol/L\n"
-                f"Remaining: {kl}kcal F:{fl}g P:{pl}g C:{cl}g\n"
-                f"Answer DIRECTLY. For ketosis entry: give fasting hours, exercise, sauna, food. Use bullet points. Answer in English.")
+        system=(
+            f"You are KetOS — an expert keto diet and sports nutrition coach. "
+            f"Answer ANY question about keto, nutrition, health, or sport. "
+            f"Be specific, practical, use numbers. Max 300 words. Use bullet points.\n\n"
+            f"User profile: {u.get('gender','?')}, {u.get('weight','?')}kg, "
+            f"{u.get('height','?')}cm, {u.get('age','?')}y, "
+            f"sport: {u.get('sport_type','?')}, goal: {u.get('goal','?')}, "
+            f"keto mode: {u.get('keto_level','?')}, ketones: {u.get('ketones',0)} mmol/L\n"
+            f"Today remaining: {kl}kcal | Fat:{fl}g | Protein:{pl}g | Carbs:{cl}g\n\n"
+            f"Answer in English. Be direct and helpful."
+        )
     else:
-        system=(f"Ты KetOS — эксперт по кето для спортсменов. Давай КОНКРЕТНЫЕ ответы с цифрами. Максимум 250 слов.\n"
-                f"Пользователь: {u.get('gender','?')}, {u.get('weight','?')}кг, {u.get('height','?')}см, "
-                f"{u.get('age','?')}лет, спорт={u.get('sport_type','?')}, цель={u.get('goal','?')}, "
-                f"кетоны={u.get('ketones',0)}ммоль/л\n"
-                f"Остаток: {kl}ккал Ж:{fl}г Б:{pl}г У:{cl}г\n"
-                f"Отвечай КОНКРЕТНО. Для входа в кетоз: голодание (часы), тренировка (тип/длительность), сауна, питание. Маркированный список. Отвечай на русском.")
-    try:
-        r=requests.post("https://api.anthropic.com/v1/messages",
-            headers={"x-api-key":ANTHROPIC_API_KEY,
-                     "anthropic-version":"2023-06-01",
-                     "content-type":"application/json"},
-            json={"model":"claude-haiku-4-5-20251001",
-                  "max_tokens":500,
-                  "system": system,
-                  "messages":[{"role":"user","content":question}]},
-            timeout=30)
-        print(f"Claude API: {r.status_code} | {r.text[:300]}")
-        if r.status_code==200:
-            return r.json()["content"][0]["text"]
-        return None
-    except Exception as e:
-        print(f"Claude exc: {e}"); return None
+        system=(
+            f"Ты KetOS — эксперт по кето-диете и спортивному питанию. "
+            f"Отвечай на ЛЮБЫЕ вопросы про кето, питание, здоровье, спорт. "
+            f"Давай конкретные ответы с цифрами. Максимум 300 слов. Используй маркированный список.\n\n"
+            f"Профиль пользователя: {u.get('gender','?')}, {u.get('weight','?')}кг, "
+            f"{u.get('height','?')}см, {u.get('age','?')}лет, "
+            f"спорт: {u.get('sport_type','?')}, цель: {u.get('goal','?')}, "
+            f"режим: {u.get('keto_level','?')}, кетоны: {u.get('ketones',0)} ммоль/л\n"
+            f"Остаток сегодня: {kl}ккал | Ж:{fl}г | Б:{pl}г | У:{cl}г\n\n"
+            f"Отвечай на русском. Будь конкретным и полезным."
+        )
+
+    # Try models in order
+    for model in ["claude-haiku-4-5-20251001", "claude-haiku-20240307"]:
+        try:
+            r=requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "max_tokens": 600,
+                    "system": system,
+                    "messages": [{"role":"user","content": question}]
+                },
+                timeout=30
+            )
+            print(f"Claude [{model}]: {r.status_code} | {r.text[:200]}")
+            if r.status_code == 200:
+                return r.json()["content"][0]["text"]
+            elif r.status_code == 400:
+                # Try next model
+                continue
+        except Exception as e:
+            print(f"Claude exc: {e}")
+    return None
 
 def keto_advice_text(u, question):
     lang = u.get("lang","ru")
@@ -610,7 +633,7 @@ def keto_advice_text(u, question):
     pl = max(0, u["protein_target"] - u["protein"])
     cl = max(0, u["carbs_target"] - u["carbs"])
 
-    is_electrolytes = any(x in q for x in ["магний","magnesium","калий","potassium","электролит","electrolyte","натрий","sodium","продуктах","sources"])
+    is_electrolytes = any(x in q for x in ["магний","magnesium","калий","potassium","электролит","electrolyte","натрий","sodium","продуктах","sources","соль","salt","зачем соль","why salt","почему соль"])
     is_ketosis  = any(x in q for x in ["кетоз","ketosis","войти","enter","ускор","speed","саун","sauna","голод","fasting","быстро","fast","24","48"])
     is_plateau  = any(x in q for x in ["плато","plateau","вес не","не худею","not losing","стоит вес","застрял","stuck"])
     is_fatigue  = any(x in q for x in ["устал","fatigue","слабост","weakness","нет энергии","no energy","нет сил","tired","вялост","кето грипп","keto flu"])
@@ -825,31 +848,38 @@ def keto_advice_text(u, question):
             )
 
     else:
+        # Smart universal answer - analyze any keto question
         if lang == "en":
             return (
-                f"💡 Keto Adviser\n\n"
-                f"Remaining: Fat:{fl}g Protein:{pl}g Carbs:{cl}g\n\n"
-                f"Ask me:\n"
+                f"🤖 Keto Adviser\n\n"
+                f"I didn't fully recognize your question: «{question[:50]}»\n\n"
+                f"I can answer:\n"
+                f"• Why salt on keto → ask 'why salt'\n"
                 f"• How to enter ketosis fast\n"
                 f"• Magnesium and potassium sources\n"
-                f"• Training tips on keto\n"
-                f"• How to break weight plateau\n"
+                f"• Training on keto\n"
+                f"• Weight plateau\n"
                 f"• Fatigue on keto\n"
                 f"• Alcohol on keto\n"
-                f"• What to eat today"
+                f"• What foods to eat\n"
+                f"• What to eat today\n\n"
+                f"Try rephrasing your question!"
             )
         else:
             return (
-                f"💡 Кето Советник\n\n"
-                f"Осталось: Ж:{fl}г Б:{pl}г У:{cl}г\n\n"
-                f"Спроси:\n"
-                f"• Как войти в кетоз быстро\n"
-                f"• Магний и калий в каких продуктах\n"
+                f"🤖 Кето Советник\n\n"
+                f"Я не до конца понял вопрос: «{question[:50]}»\n\n"
+                f"Попробуй спросить:\n"
+                f"• Зачем соль на кето?\n"
+                f"• Как быстро войти в кетоз?\n"
+                f"• Магний и калий в каких продуктах?\n"
                 f"• Советы для тренировки на кето\n"
-                f"• Как сломать плато веса\n"
-                f"• Усталость на кето\n"
+                f"• Как сломать плато веса?\n"
+                f"• Усталость на кето — что делать?\n"
                 f"• Алкоголь на кето\n"
-                f"• Что съесть сегодня"
+                f"• Список продуктов на кето\n"
+                f"• Что съесть сегодня?\n\n"
+                f"Или переформулируй вопрос — отвечу!"
             )
 
 def meal_plan_text(u):
