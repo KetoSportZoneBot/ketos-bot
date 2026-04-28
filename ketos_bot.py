@@ -604,218 +604,210 @@ def ask_claude(u, question):
         print(f"Claude exc: {e}"); return None
 
 def keto_advice_text(u, question):
-    """Specific keto advice without Claude API"""
     lang = u.get("lang","ru")
-    w = u.get("weight", 70)
     q = question.lower()
+    fl = max(0, u["fat_target"] - u["fat"])
+    pl = max(0, u["protein_target"] - u["protein"])
+    cl = max(0, u["carbs_target"] - u["carbs"])
 
-    # Detect question type
-    is_ketosis = any(x in q for x in ["кетоз","ketosis","войти","enter","ускор","speed","fast","саун","sauna","голод","fasting"])
-    is_food = any(x in q for x in ["съесть","eat","еда","food","питание","nutrition","макрос","macro"])
-    is_training = any(x in q for x in ["трениров","train","спорт","sport","workout","упражн","exercise"])
+    is_electrolytes = any(x in q for x in ["магний","magnesium","калий","potassium","электролит","electrolyte","соль","salt","натрий","sodium","продуктах","sources","where"])
+    is_ketosis = any(x in q for x in ["кетоз","ketosis","войти","enter","ускор","speed","саун","sauna","голод","fasting","быстро","fast"])
+    is_plateau = any(x in q for x in ["плато","plateau","вес не","не худею","not losing","стоит вес","застрял"])
+    is_fatigue = any(x in q for x in ["усталост","fatigue","слабост","weakness","энергия","energy","вялост","нет сил","tired"])
+    is_training = any(x in q for x in ["трениров","train","спорт","sport","workout","упражн","exercise","силов","кардио","cardio"])
     is_alcohol = any(x in q for x in ["алкоголь","alcohol","вино","wine","пиво","beer"])
+    is_food = any(x in q for x in ["съесть","eat today","что есть","what to eat","рацион","меню"])
 
-    if is_ketosis:
+    if is_electrolytes:
         if lang == "en":
             return (
-                f"🚀 Fast Ketosis Entry Plan (24-48h)\n\n"
-                f"⏰ HOUR 0-16: FASTING\n"
-                f"• Drink only water, black coffee, herbal tea\n"
-                f"• Zero calories — depletes glycogen stores\n"
-                f"• Add salt to water (electrolytes!)\n\n"
-                f"🏃 HOUR 3-4: EXERCISE\n"
-                f"• 45-60 min cardio (run, bike, swim)\n"
-                f"• Or HIIT: 8×20 sec sprint + 40 sec rest\n"
-                f"• Burns remaining glucose fast\n\n"
-                f"🧖 HOUR 6-8: SAUNA\n"
-                f"• 3 rounds × 15 min at 80-90°C\n"
-                f"• 5 min cold shower between rounds\n"
-                f"• Accelerates metabolism, burns glycogen\n\n"
-                f"🥩 FIRST MEAL (after 16h):\n"
-                f"• 2 eggs + bacon + avocado\n"
-                f"• Zero carbs! Fat + protein only\n"
-                f"• Add MCT oil (1 tbsp) to coffee\n\n"
-                f"📊 RESULT:\n"
-                f"• Ketones appear: 12-24h\n"
-                f"• Optimal ketosis (1.5+ mmol/L): 24-48h\n"
-                f"• Measure ketones every 12h\n\n"
-                f"💊 MUST HAVE: Salt, magnesium, potassium!"
+                "💊 Electrolytes on Keto — Where to Find\n\n"
+                "🟡 MAGNESIUM (target: 300-400mg/day):\n"
+                "• Pumpkin seeds 30g → 150mg ✅\n"
+                "• Almonds 30g → 80mg ✅\n"
+                "• Spinach 100g → 80mg\n"
+                "• Avocado 200g → 60mg\n"
+                "• Supplement: Mg glycinate 200-400mg at night\n\n"
+                "🔵 POTASSIUM (target: 3000-4000mg/day):\n"
+                "• Avocado 200g → 900mg ✅\n"
+                "• Salmon 150g → 700mg ✅\n"
+                "• Spinach 100g → 500mg\n"
+                "• Mushrooms 100g → 400mg\n\n"
+                "🔴 SODIUM (target: 3000-5000mg/day):\n"
+                "• Salt every meal (1 tsp = 2300mg)\n"
+                "• Bone broth 1 cup → 900mg\n\n"
+                "💡 Quick fix: bone broth + pinch of salt = instant electrolytes!"
             )
         else:
             return (
-                f"🚀 План быстрого входа в кетоз (24-48ч)\n\n"
-                f"⏰ ЧАСЫ 0-16: ГОЛОДАНИЕ\n"
-                f"• Только вода, чёрный кофе, травяной чай\n"
-                f"• Ноль калорий — опустошает запасы гликогена\n"
-                f"• Добавляй соль в воду (электролиты!)\n\n"
-                f"🏃 ЧАСЫ 3-4: ТРЕНИРОВКА\n"
-                f"• 45-60 мин кардио (бег, велик, плавание)\n"
-                f"• Или ВИИТ: 8×20 сек спринт + 40 сек отдых\n"
-                f"• Сжигает остатки глюкозы быстро\n\n"
-                f"🧖 ЧАСЫ 6-8: САУНА\n"
-                f"• 3 захода × 15 мин при 80-90°C\n"
-                f"• 5 мин холодный душ между заходами\n"
-                f"• Ускоряет метаболизм, сжигает гликоген\n\n"
-                f"🥩 ПЕРВЫЙ ПРИЁМ (после 16ч):\n"
-                f"• 2 яйца + бекон + авокадо\n"
-                f"• Ноль углеводов! Только жир + белок\n"
-                f"• MCT масло (1 ст.л.) в кофе\n\n"
-                f"📊 РЕЗУЛЬТАТ:\n"
-                f"• Кетоны появятся: через 12-24ч\n"
-                f"• Оптимальный кетоз (1.5+ ммоль/л): через 24-48ч\n"
-                f"• Измеряй кетоны каждые 12ч\n\n"
-                f"💊 ОБЯЗАТЕЛЬНО: Соль, магний, калий!"
+                "💊 Электролиты на кето — где взять\n\n"
+                "🟡 МАГНИЙ (норма: 300-400мг/день):\n"
+                "• Семечки тыквы 30г → 150мг ✅\n"
+                "• Миндаль 30г → 80мг ✅\n"
+                "• Шпинат 100г → 80мг\n"
+                "• Авокадо 200г → 60мг\n"
+                "• Добавка: Mg глицинат 200-400мг на ночь\n\n"
+                "🔵 КАЛИЙ (норма: 3000-4000мг/день):\n"
+                "• Авокадо 200г → 900мг ✅\n"
+                "• Лосось 150г → 700мг ✅\n"
+                "• Шпинат 100г → 500мг\n"
+                "• Грибы 100г → 400мг\n\n"
+                "🔴 НАТРИЙ (норма: 3000-5000мг/день):\n"
+                "• Соль к каждому блюду (1 ч.л. = 2300мг)\n"
+                "• Костный бульон 1 кружка → 900мг\n\n"
+                "💡 Быстро: кружка бульона + щепотка соли = мгновенные электролиты!"
             )
+
+    elif is_ketosis:
+        if lang == "en":
+            return (
+                "🚀 Fast Ketosis Entry Plan (24-48h)\n\n"
+                "⏰ HOUR 0-16: FASTING\n"
+                "• Water, black coffee, herbal tea only\n"
+                "• Zero calories — depletes glycogen\n"
+                "• Add salt to water!\n\n"
+                "🏃 HOUR 3-4: EXERCISE\n"
+                "• 45-60 min cardio (run/bike/swim)\n"
+                "• Or HIIT: 8×20 sec sprint + 40 sec rest\n\n"
+                "🧖 HOUR 6-8: SAUNA\n"
+                "• 3 rounds × 15 min at 80-90°C\n"
+                "• Cold shower between rounds\n\n"
+                "🥩 FIRST MEAL (after 16h):\n"
+                "• Eggs + bacon + avocado\n"
+                "• Zero carbs! MCT oil in coffee\n\n"
+                "📊 Ketones: 12-24h | Optimal (1.5+): 24-48h\n\n"
+                "💊 MUST: Salt + magnesium + potassium daily!"
+            )
+        else:
+            return (
+                "🚀 Быстрый вход в кетоз (24-48ч)\n\n"
+                "⏰ ЧАСЫ 0-16: ГОЛОДАНИЕ\n"
+                "• Вода, чёрный кофе, травяной чай\n"
+                "• Ноль калорий — опустошает гликоген\n"
+                "• Соль в воду!\n\n"
+                "🏃 ЧАСЫ 3-4: ТРЕНИРОВКА\n"
+                "• 45-60 мин кардио (бег/велик/плавание)\n"
+                "• Или ВИИТ: 8×20 сек спринт + 40 сек отдых\n\n"
+                "🧖 ЧАСЫ 6-8: САУНА\n"
+                "• 3 захода × 15 мин при 80-90°C\n"
+                "• Холодный душ между заходами\n\n"
+                "🥩 ПЕРВЫЙ ПРИЁМ (после 16ч):\n"
+                "• Яйца + бекон + авокадо\n"
+                "• Ноль углеводов! MCT масло в кофе\n\n"
+                "📊 Кетоны: через 12-24ч | Оптимальный: через 24-48ч\n\n"
+                "💊 ОБЯЗАТЕЛЬНО: Соль + магний + калий каждый день!"
+            )
+
+    elif is_plateau:
+        if lang == "en":
+            return (
+                "📉 Breaking Keto Plateau\n\n"
+                "1. Check hidden carbs (sauces, spices)\n"
+                "2. Fat fast 2-3 days (80% fat, 1200 kcal)\n"
+                "3. Add 30 min walk daily\n"
+                "4. Try 16:8 fasting (eat 12:00-20:00)\n"
+                "5. Check sleep — cortisol blocks fat loss!\n"
+                "6. Reduce dairy"
+            )
+        else:
+            return (
+                "📉 Как сломать плато на кето\n\n"
+                "1. Проверь скрытые углеводы (соусы, специи)\n"
+                "2. Жировое голодание 2-3 дня (80% жир, 1200 ккал)\n"
+                "3. Добавь 30 мин прогулки каждый день\n"
+                "4. Попробуй 16:8 (ешь 12:00-20:00)\n"
+                "5. Проверь сон — кортизол блокирует жиросжигание!\n"
+                "6. Сократи молочное"
+            )
+
+    elif is_fatigue:
+        if lang == "en":
+            return (
+                "⚡ Fatigue on Keto\n\n"
+                "MOST LIKELY: Electrolyte deficiency!\n\n"
+                "✅ RIGHT NOW: Bone broth + salt + 300mg magnesium\n"
+                "✅ FIRST 2 WEEKS: Normal (keto flu, lasts 3-7 days)\n"
+                "✅ BEFORE WORKOUT: Coffee + MCT oil\n"
+                "✅ LONG-TERM: Eat enough calories? Add more fat"
+            )
+        else:
+            return (
+                "⚡ Усталость на кето\n\n"
+                "ПРИЧИНА: Нехватка электролитов!\n\n"
+                "✅ ПРЯМО СЕЙЧАС: Бульон + соль + магний 300мг\n"
+                "✅ ПЕРВЫЕ 2 НЕДЕЛИ: Нормально (кето-грипп, 3-7 дней)\n"
+                "✅ ПЕРЕД ТРЕНИРОВКОЙ: Кофе + MCT масло\n"
+                "✅ ДОЛГОСРОЧНО: Достаточно калорий? Добавь жира"
+            )
+
     elif is_training:
         if lang == "en":
             return (
-                f"🏋️ Training on Keto — Specific Plan\n\n"
-                f"BEFORE (30-60 min before):\n"
-                f"• Coffee + 1 tbsp MCT oil\n"
-                f"• Or: 2 boiled eggs\n"
-                f"• No carbs before training!\n\n"
-                f"DURING:\n"
-                f"• Water + electrolytes (salt, magnesium)\n"
-                f"• For sessions >90 min: 1 gel (20g carbs)\n\n"
-                f"AFTER (within 30 min):\n"
-                f"• 30-40g protein: chicken/fish/eggs\n"
-                f"• For strength: add 15-20g carbs (berries)\n"
-                f"• For cardio: zero carbs\n\n"
-                f"BEST WORKOUTS ON KETO:\n"
-                f"✅ Long cardio (60+ min) — uses fat as fuel\n"
-                f"✅ Strength (low reps, heavy weight)\n"
-                f"✅ HIIT after 2+ weeks on keto\n"
-                f"❌ Avoid: high-intensity intervals in first 2 weeks"
+                "🏋️ Training on Keto\n\n"
+                "BEFORE: Coffee + MCT oil or 2 eggs\n"
+                "DURING: Water + salt + magnesium\n"
+                "AFTER: 30-40g protein (chicken/fish/eggs)\n\n"
+                "✅ BEST: Long cardio 60+ min, heavy strength training\n"
+                "❌ First 2 weeks: avoid max intensity"
             )
         else:
             return (
-                f"🏋️ Тренировки на кето — конкретный план\n\n"
-                f"ДО (за 30-60 мин):\n"
-                f"• Кофе + 1 ст.л. MCT масла\n"
-                f"• Или: 2 варёных яйца\n"
-                f"• Никаких углеводов перед тренировкой!\n\n"
-                f"ВО ВРЕМЯ:\n"
-                f"• Вода + электролиты (соль, магний)\n"
-                f"• Если >90 мин: 1 гель (20г углеводов)\n\n"
-                f"ПОСЛЕ (в течение 30 мин):\n"
-                f"• 30-40г белка: курица/рыба/яйца\n"
-                f"• Для силовых: добавь 15-20г углеводов (ягоды)\n"
-                f"• Для кардио: ноль углеводов\n\n"
-                f"ЛУЧШИЕ ТРЕНИРОВКИ НА КЕТО:\n"
-                f"✅ Длинное кардио (60+ мин) — жир как топливо\n"
-                f"✅ Силовые (малые повторения, большой вес)\n"
-                f"✅ ВИИТ после 2+ недель на кето\n"
-                f"❌ Избегай: интенсивные интервалы в первые 2 недели"
+                "🏋️ Тренировки на кето\n\n"
+                "ДО: Кофе + MCT масло или 2 яйца\n"
+                "ВО ВРЕМЯ: Вода + соль + магний\n"
+                "ПОСЛЕ: 30-40г белка (курица/рыба/яйца)\n\n"
+                "✅ ЛУЧШЕЕ: Длинное кардио 60+ мин, тяжёлые силовые\n"
+                "❌ Первые 2 недели: избегай макс. интенсивности"
             )
-    elif is_food:
-        return meal_plan_text(u)
+
     elif is_alcohol:
         if lang == "en":
             return (
-                f"🍷 Alcohol on Keto — Rules\n\n"
-                f"✅ ALLOWED (carefully):\n"
-                f"• Dry wine: 1 glass (150ml) = 4g carbs\n"
-                f"• Whisky/Vodka/Cognac: 50ml = 0g carbs\n"
-                f"• Champagne: 150ml = 6g carbs\n\n"
-                f"❌ FORBIDDEN:\n"
-                f"• Beer (13-18g carbs per 330ml)\n"
-                f"• Sweet cocktails (25g+ carbs)\n"
-                f"• Liqueurs and sweet wines\n\n"
-                f"⚠️ REMEMBER:\n"
-                f"• Alcohol pauses fat burning for 2-4h\n"
-                f"• Eat fat + protein BEFORE drinking\n"
-                f"• Drink lots of water\n"
-                f"• Recovery to ketosis: 8-24h"
+                "🍷 Alcohol on Keto\n\n"
+                "✅ OK: Dry wine 150ml=4g, Vodka/Whisky 50ml=0g\n"
+                "❌ NO: Beer (13g+), sweet cocktails, liqueurs\n\n"
+                "Rules: Eat fat+protein before, drink water\n"
+                "Recovery to ketosis: 8-24h"
             )
         else:
             return (
-                f"🍷 Алкоголь на кето — правила\n\n"
-                f"✅ МОЖНО (осторожно):\n"
-                f"• Сухое вино: 1 бокал (150мл) = 4г углеводов\n"
-                f"• Виски/Водка/Коньяк: 50мл = 0г углеводов\n"
-                f"• Шампанское: 150мл = 6г углеводов\n\n"
-                f"❌ НЕЛЬЗЯ:\n"
-                f"• Пиво (13-18г углеводов на 330мл)\n"
-                f"• Сладкие коктейли (25г+ углеводов)\n"
-                f"• Ликёры и сладкие вина\n\n"
-                f"⚠️ ПОМНИ:\n"
-                f"• Алкоголь останавливает сжигание жира на 2-4ч\n"
-                f"• Ешь жир + белок ДО употребления\n"
-                f"• Пей много воды\n"
-                f"• Возврат в кетоз: 8-24ч"
+                "🍷 Алкоголь на кето\n\n"
+                "✅ МОЖНО: Сухое вино 150мл=4г, Водка/Виски 50мл=0г\n"
+                "❌ НЕЛЬЗЯ: Пиво (13г+), сладкие коктейли, ликёры\n\n"
+                "Правила: Ешь жир+белок до, пей воду\n"
+                "Возврат в кетоз: 8-24ч"
             )
+
+    elif is_food:
+        return meal_plan_text(u)
+
     else:
-        # Generic keto tip
-        fl=max(0,u["fat_target"]-u["fat"])
-        pl=max(0,u["protein_target"]-u["protein"])
-        cl=max(0,u["carbs_target"]-u["carbs"])
         if lang == "en":
             return (
-                f"💡 Your Keto Status\n\n"
-                f"Remaining today:\n"
-                f"Fat: {fl}g | Protein: {pl}g | Carbs: {cl}g\n\n"
-                f"Top 3 keto tips:\n"
-                f"• Keep carbs under {u['carbs_target']}g/day\n"
-                f"• Drink 2-3L water + electrolytes daily\n"
-                f"• Measure ketones every morning\n\n"
-                f"Ask me: how to enter ketosis, what to eat, training tips!"
+                f"💡 Keto Adviser\n\n"
+                f"Remaining: Fat:{fl}g Protein:{pl}g Carbs:{cl}g\n\n"
+                f"Ask me:\n"
+                f"• How to enter ketosis fast\n"
+                f"• Magnesium and potassium sources\n"
+                f"• Training tips on keto\n"
+                f"• How to break weight plateau\n"
+                f"• Fatigue on keto\n"
+                f"• Alcohol on keto\n"
+                f"• What to eat today"
             )
         else:
             return (
-                f"💡 Твой кето-статус\n\n"
-                f"Осталось сегодня:\n"
-                f"Жиры: {fl}г | Белки: {pl}г | Углеводы: {cl}г\n\n"
-                f"Топ-3 совета по кето:\n"
-                f"• Держи углеводы ниже {u['carbs_target']}г/день\n"
-                f"• Пей 2-3л воды + электролиты каждый день\n"
-                f"• Измеряй кетоны каждое утро\n\n"
-                f"Спроси меня: как войти в кетоз, что съесть, советы для тренировки!"
+                f"💡 Кето Советник\n\n"
+                f"Осталось: Ж:{fl}г Б:{pl}г У:{cl}г\n\n"
+                f"Спроси:\n"
+                f"• Как войти в кетоз быстро\n"
+                f"• Магний и калий в каких продуктах\n"
+                f"• Советы для тренировки на кето\n"
+                f"• Как сломать плато веса\n"
+                f"• Усталость на кето\n"
+                f"• Алкоголь на кето\n"
+                f"• Что съесть сегодня"
             )
-    lang=u.get("lang","ru")
-    fl=max(0,u["fat_target"]-u["fat"])
-    pl=max(0,u["protein_target"]-u["protein"])
-    cl=max(0,u["carbs_target"]-u["carbs"])
-    kl=max(0,u["cal_target"]-u["calories"])
-    if kl<=50:
-        return L(u,"Норма выполнена! Отличная работа!","Daily goal reached! Great job!")
-    pool=list(FOOD_SUGGESTIONS); plan=[]; rf=fl; rp=pl; rc=cl; rk=kl
-    for _ in range(4):
-        if rk<=50: break
-        best=None; bs=-999
-        for f in pool:
-            if f in [x[0] for x in plan]: continue
-            if f["carbs"]>rc+3: continue
-            s=0
-            if rf>5: s+=min(f["fat"],rf)*2
-            if rp>5: s+=min(f["protein"],rp)*3
-            if f["cal"]<=rk: s+=5
-            else: s-=20
-            if s>bs: bs=s; best=f
-        if best and bs>0:
-            plan.append((best,bs))
-            rf-=best["fat"]; rp-=best["protein"]; rc-=best["carbs"]; rk-=best["cal"]
-            pool.remove(best)
-    if not plan:
-        return L(u,"Ты уже почти у цели!","Almost at your goal!")
-    if lang=="en":
-        lines=[f"Keto Adviser — Meal Plan\n\nRemaining: {kl}kcal F:{fl}g P:{pl}g C:{cl}g\n\nSuggested:\n"]
-        tf=tp=tc=tcal=0
-        for i,(f,_) in enumerate(plan,1):
-            lines.append(f"{i}. {f['en']}\n   F:{f['fat']}g P:{f['protein']}g C:{f['carbs']}g {f['cal']}kcal\n")
-            tf+=f["fat"]; tp+=f["protein"]; tc+=f["carbs"]; tcal+=f["cal"]
-        after=kl-tcal
-        lines.append(f"\nTotal: {tcal}kcal F:{tf}g P:{tp}g C:{tc}g")
-        lines.append("\nGoal reached!" if after<=100 else f"\nStill needed: {after}kcal")
-    else:
-        lines=[f"Кето Советник — Рацион\n\nОсталось: {kl}ккал Ж:{fl}г Б:{pl}г У:{cl}г\n\nРекомендую:\n"]
-        tf=tp=tc=tcal=0
-        for i,(f,_) in enumerate(plan,1):
-            lines.append(f"{i}. {f['ru']}\n   Ж:{f['fat']}г Б:{f['protein']}г У:{f['carbs']}г {f['cal']}ккал\n")
-            tf+=f["fat"]; tp+=f["protein"]; tc+=f["carbs"]; tcal+=f["cal"]
-        after=kl-tcal
-        lines.append(f"\nИтого: {tcal}ккал Ж:{tf}г Б:{tp}г У:{tc}г")
-        lines.append("\nНорма выполнена!" if after<=100 else f"\nОстанется: {after}ккал")
-    return "".join(lines)
 
 def recovery_text(u, total_carbs):
     h=max(4,int(total_carbs/15))
