@@ -446,16 +446,23 @@ def analyze_photo(image_bytes):
                             {
                                 "type": "text",
                                 "text": (
-                                    "Identify this dish and estimate nutritional values for the ENTIRE portion shown.\n"
-                                    "Reply ONLY in this exact format (numbers only, no units in number fields):\n"
-                                    "DISH_EN: [dish name in English]\n"
-                                    "DISH_RU: [название блюда на русском]\n"
+                                    "You are a professional nutritionist. Carefully analyze ALL ingredients visible in this photo.\n\n"
+                                    "1. Look for EVERY component: proteins (meat, fish, eggs), carbs (rice, noodles, bread), "
+                                    "vegetables, sauces, oils, toppings\n"
+                                    "2. Estimate the TOTAL portion size in grams\n"
+                                    "3. Calculate macros for the ENTIRE dish shown\n\n"
+                                    "Common Asian dishes guide:\n"
+                                    "- Rice congee/porridge with egg+chicken (400g): ~320kcal F:8g P:18g C:45g\n"
+                                    "- Chicken curry with rice (400g): ~520kcal F:14g P:28g C:65g\n"
+                                    "- Pad thai (350g): ~490kcal F:16g P:22g C:62g\n"
+                                    "- Tom yum soup (400ml): ~120kcal F:4g P:12g C:8g\n\n"
+                                    "Reply ONLY in this exact format:\n"
+                                    "DISH_EN: [full dish description including ALL main ingredients in English]\n"
+                                    "DISH_RU: [полное описание блюда со ВСЕМИ основными ингредиентами на русском]\n"
                                     "CALORIES: [number]\n"
                                     "FAT: [number]\n"
                                     "PROTEIN: [number]\n"
-                                    "CARBS: [number]\n\n"
-                                    "Be accurate. Know Asian dishes: congee=рисовый суп, pad thai=пад тай, tom yum=том ям etc.\n"
-                                    "Estimate for the full bowl/plate visible, not per 100g."
+                                    "CARBS: [number]"
                                 )
                             }
                         ]
