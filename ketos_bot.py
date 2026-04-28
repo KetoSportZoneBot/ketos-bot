@@ -414,140 +414,162 @@ def get_fallback(dish_names):
 # ============================================================
 
 def analyze_photo(image_bytes):
-    """Use Claude Vision for accurate food analysis"""
     try:
         import base64
         image_b64 = base64.b64encode(image_bytes).decode('utf-8')
 
-        # Use Claude Vision if API key available
+        # ===== CLAUDE VISION (primary) =====
         if ANTHROPIC_API_KEY:
-            r = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 300,
-                    "system": "You are a nutrition expert. Analyze food photos and give accurate macro estimates.",
-                    "messages": [{
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": "image/jpeg",
-                                    "data": image_b64,
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": (
-                                    "You are a professional nutritionist. Carefully analyze ALL ingredients visible in this photo.\n\n"
-                                    "1. Look for EVERY component: proteins (meat, fish, eggs), carbs (rice, noodles, bread), "
-                                    "vegetables, sauces, oils, toppings\n"
-                                    "2. Estimate the TOTAL portion size in grams\n"
-                                    "3. Calculate macros for the ENTIRE dish shown\n\n"
-                                    "Common Asian dishes guide:\n"
-                                    "- Rice congee/porridge with egg+chicken (400g): ~320kcal F:8g P:18g C:45g\n"
-                                    "- Chicken curry with rice (400g): ~520kcal F:14g P:28g C:65g\n"
-                                    "- Pad thai (350g): ~490kcal F:16g P:22g C:62g\n"
-                                    "- Tom yum soup (400ml): ~120kcal F:4g P:12g C:8g\n\n"
-                                    "Reply ONLY in this exact format:\n"
-                                    "DISH_EN: [full dish description including ALL main ingredients in English]\n"
-                                    "DISH_RU: [полное описание блюда со ВСЕМИ основными ингредиентами на русском]\n"
-                                    "CALORIES: [number]\n"
-                                    "FAT: [number]\n"
-                                    "PROTEIN: [number]\n"
-                                    "CARBS: [number]"
-                                )
-                            }
-                        ]
-                    }]
-                },
-                timeout=30
-            )
-            print(f"Claude Vision: {r.status_code}")
-            if r.status_code == 200:
-                response_text = r.json()["content"][0]["text"]
-                print(f"Claude Vision response: {response_text}")
+            for model in ["claude-haiku-4-5-20251001", "claude-haiku-20240307"]:
+                try:
+                    r = requests.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={"x-api-key": ANTHROPIC_API_KEY,
+                                 "anthropic-version": "2023-06-01",
+                                 "content-type": "application/json"},
+                        json={
+                            "model": model,
+                            "max_tokens": 400,
+                            "system": "You are a professional nutritionist who analyzes food photos accurately.",
+                            "messages": [{"role": "user", "content": [
+                                {"type": "image", "source": {
+                                    "type": "base64", "media_type": "image/jpeg", "data": image_b64}},
+                                {"type": "text", "text": (
+                                    "Analyze ALL ingredients visible in this food photo carefully.\n"
+                                    "List EVERY component you see: rice, meat, eggs, vegetables, sauce, etc.\n"
+                                    "Calculate total macros for the ENTIRE portion shown.\n\n"
+                                    "Asian dish reference (per typical serving):\n"
+                                    "- Rice (150g cooked): F:0g P:3g C:40g = 172kcal\n"
+                                    "- Fried egg (50g): F:5g P:6g C:0g = 72kcal\n"
+                                    "- Chicken curry (150g): F:10g P:22g C:8g = 210kcal\n"
+                                    "- Rice congee+chicken+egg (400g): F:8g P:20g C:42g = 320kcal\n\n"
+                                    "Reply ONLY:\n"
+                                    "DISH_EN: [describe ALL ingredients, e.g. 'Rice with fried egg and chicken curry']\n"
+                                    "DISH_RU: [все ингредиенты по-русски, н-р 'Рис с яйцом и куриным карри']\n"
+                                    "CALORIES: [total kcal]\n"
+                                    "FAT: [total grams]\n"
+                                    "PROTEIN: [total grams]\n"
+                                    "CARBS: [total grams]"
+                                )}
+                            ]}]
+                        },
+                        timeout=30
+                    )
+                    print(f"Claude Vision [{model}]: {r.status_code}")
+                    if r.status_code == 200:
+                        txt = r.json()["content"][0]["text"]
+                        print(f"Vision response: {txt}")
+                        dish_en="Dish"; dish_ru="Блюдо"
+                        calories=fat=protein=carbs=0
+                        for line in txt.strip().split('\n'):
+                            line=line.strip()
+                            if line.startswith("DISH_EN:"): dish_en=line.replace("DISH_EN:","").strip()
+                            elif line.startswith("DISH_RU:"): dish_ru=line.replace("DISH_RU:","").strip()
+                            elif line.startswith("CALORIES:"):
+                                try: calories=float(re.sub(r'[^\d.]','',line.split(':',1)[1]))
+                                except: pass
+                            elif line.startswith("FAT:"):
+                                try: fat=float(re.sub(r'[^\d.]','',line.split(':',1)[1]))
+                                except: pass
+                            elif line.startswith("PROTEIN:"):
+                                try: protein=float(re.sub(r'[^\d.]','',line.split(':',1)[1]))
+                                except: pass
+                            elif line.startswith("CARBS:"):
+                                try: carbs=float(re.sub(r'[^\d.]','',line.split(':',1)[1]))
+                                except: pass
+                        if fat>0 or protein>0 or carbs>0:
+                            cal = round(fat*9 + protein*4 + carbs*4)
+                            return {"dishes":[dish_ru,dish_en], "dish_ru":dish_ru, "dish_en":dish_en,
+                                    "calories":cal, "fat":round(fat,1), "protein":round(protein,1),
+                                    "carbs":round(carbs,1), "from_fallback":False}
+                except Exception as e:
+                    print(f"Vision exc [{model}]: {e}")
 
-                # Parse response
-                lines = response_text.strip().split('\n')
-                dish_en = "Dish"
-                dish_ru = "Блюдо"
-                calories = fat = protein = carbs = 0
-
-                for line in lines:
-                    line = line.strip()
-                    if line.startswith("DISH_EN:"):
-                        dish_en = line.replace("DISH_EN:", "").strip()
-                    elif line.startswith("DISH_RU:"):
-                        dish_ru = line.replace("DISH_RU:", "").strip()
-                    elif line.startswith("DISH:"):
-                        dish_en = line.replace("DISH:", "").strip()
-                        dish_ru = dish_en
-                    elif line.startswith("CALORIES:"):
-                        try: calories = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
-                        except: pass
-                    elif line.startswith("FAT:"):
-                        try: fat = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
-                        except: pass
-                    elif line.startswith("PROTEIN:"):
-                        try: protein = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
-                        except: pass
-                    elif line.startswith("CARBS:"):
-                        try: carbs = float(re.sub(r'[^\d.]', '', line.split(':')[1]))
-                        except: pass
-
-                if calories > 0 or fat > 0 or protein > 0:
-                    calc_cal = fat*9 + protein*4 + carbs*4
-                    if calc_cal > 50:
-                        calories = calc_cal
-                    return {
-                        "dishes": [dish_ru, dish_en],  # [0]=RU, [1]=EN
-                        "dish_ru": dish_ru,
-                        "dish_en": dish_en,
-                        "calories": round(calories),
-                        "fat": round(fat, 1),
-                        "protein": round(protein, 1),
-                        "carbs": round(carbs, 1),
-                        "from_fallback": False
-                    }
-
-        # Fallback to LogMeal if no Claude key
+        # ===== LOGMEAL (fallback) =====
         headers = {"Authorization": f"Bearer {LOGMEAL_TOKEN}"}
         files = {"image": ("food.jpg", image_bytes, "image/jpeg")}
         r1 = requests.post("https://api.logmeal.com/v2/image/segmentation/complete",
                            headers=headers, files=files, timeout=30)
+        print(f"LogMeal: {r1.status_code}")
         if r1.status_code != 200: return None
-        d1 = r1.json(); image_id = d1.get("imageId")
-        dish_names = [rec.get("name","") for seg in d1.get("segmentation_results",[])
-                      for rec in seg.get("recognition_results",[]) if rec.get("name")]
+
+        d1 = r1.json()
+        image_id = d1.get("imageId")
+
+        # Collect ALL recognized items from ALL segments
+        all_names = []
+        for seg in d1.get("segmentation_results", []):
+            for rec in seg.get("recognition_results", []):
+                name = rec.get("name", "").strip()
+                if name: all_names.append(name)
+
         if not image_id: return None
+
         fat=prot=carbs=cal=0
+        # Try nutritionalInfo
         r2 = requests.post("https://api.logmeal.com/v2/nutrition/recipe/nutritionalInfo",
                            headers=headers, json={"imageId": image_id}, timeout=15)
         if r2.status_code == 200:
             n = r2.json().get("nutritional_info") or {}
-            fat=float(n.get("totalFat",0) or 0); prot=float(n.get("proteins",0) or 0)
-            carbs=float(n.get("totalCarbs",0) or 0); cal=float(n.get("calories",0) or 0)
-        calc_cal = fat*9+prot*4+carbs*4
-        if calc_cal > 0: cal = calc_cal
+            fat  = float(n.get("totalFat",0) or 0)
+            prot = float(n.get("proteins",0) or 0)
+            carbs= float(n.get("totalCarbs",0) or 0)
+
+        # Try ingredients if still zero
+        if fat==0 and prot==0 and carbs==0:
+            r3 = requests.post("https://api.logmeal.com/v2/nutrition/recipe/ingredients",
+                               headers=headers, json={"imageId": image_id}, timeout=15)
+            if r3.status_code == 200:
+                for ing in r3.json().get("ingredients", []):
+                    n = ing.get("nutritional_info", {})
+                    fat  += float(n.get("totalFat",0) or 0)
+                    prot += float(n.get("proteins",0) or 0)
+                    carbs+= float(n.get("totalCarbs",0) or 0)
+
+        # Use fallback database
         from_fallback = False
         if fat==0 and prot==0 and carbs==0:
-            fb = get_fallback(dish_names)
+            fb = get_fallback(all_names)
             if fb:
                 fat=fb["fat"]; prot=fb["protein"]; carbs=fb["carbs"]
-                cal=round(fat*9+prot*4+carbs*4); from_fallback=True
-        return {"dishes": dish_names or ["Dish"], "calories": round(cal),
-                "fat": round(fat,1), "protein": round(prot,1), "carbs": round(carbs,1),
-                "from_fallback": from_fallback}
+                from_fallback = True
+
+        cal = round(fat*9 + prot*4 + carbs*4)
+
+        # Translate dish names to Russian
+        TRANSLATE = {
+            "rice": "Рис", "egg": "Яйцо", "fried egg": "Яичница",
+            "chicken": "Курица", "chicken curry": "Куриное карри",
+            "curry": "Карри", "fish": "Рыба", "pork": "Свинина",
+            "beef": "Говядина", "shrimp": "Креветки",
+            "vegetable soup": "Овощной суп", "vegetable": "Овощи",
+            "soup": "Суп", "noodle": "Лапша", "noodle soup": "Суп с лапшой",
+            "congee": "Рисовый суп", "rice soup": "Рисовый суп",
+            "pad thai": "Пад Тай", "tom yum": "Том Ям",
+            "salad": "Салат", "bread": "Хлеб", "toast": "Тост",
+            "omelette": "Омлет", "bacon": "Бекон", "sausage": "Колбаса",
+            "avocado": "Авокадо", "cheese": "Сыр", "pasta": "Паста",
+            "pizza": "Пицца", "burger": "Бургер", "sandwich": "Сэндвич",
+            "steak": "Стейк", "salmon": "Лосось", "tuna": "Тунец",
+        }
+        ru_names = []
+        for name in all_names:
+            nl = name.lower()
+            translated = None
+            for key, val in TRANSLATE.items():
+                if key in nl:
+                    translated = val; break
+            ru_names.append(translated or name)
+
+        dish_ru = ", ".join(ru_names[:3]) if ru_names else "Блюдо"
+        dish_en = ", ".join(all_names[:3]) if all_names else "Dish"
+
+        return {"dishes":[dish_ru, dish_en], "dish_ru":dish_ru, "dish_en":dish_en,
+                "calories":cal, "fat":round(fat,1), "protein":round(prot,1),
+                "carbs":round(carbs,1), "from_fallback":from_fallback}
+
     except Exception as e:
-        print(f"Photo analysis error: {e}"); return None
+        print(f"Photo error: {e}"); return None
 
 def search_food(query):
     try:
