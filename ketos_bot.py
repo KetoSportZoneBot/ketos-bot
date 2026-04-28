@@ -610,13 +610,14 @@ def keto_advice_text(u, question):
     pl = max(0, u["protein_target"] - u["protein"])
     cl = max(0, u["carbs_target"] - u["carbs"])
 
-    is_electrolytes = any(x in q for x in ["магний","magnesium","калий","potassium","электролит","electrolyte","соль","salt","натрий","sodium","продуктах","sources","where"])
-    is_ketosis = any(x in q for x in ["кетоз","ketosis","войти","enter","ускор","speed","саун","sauna","голод","fasting","быстро","fast"])
-    is_plateau = any(x in q for x in ["плато","plateau","вес не","не худею","not losing","стоит вес","застрял"])
-    is_fatigue = any(x in q for x in ["усталост","fatigue","слабост","weakness","энергия","energy","вялост","нет сил","tired"])
-    is_training = any(x in q for x in ["трениров","train","спорт","sport","workout","упражн","exercise","силов","кардио","cardio"])
-    is_alcohol = any(x in q for x in ["алкоголь","alcohol","вино","wine","пиво","beer"])
-    is_food = any(x in q for x in ["съесть","eat today","что есть","what to eat","рацион","меню"])
+    is_electrolytes = any(x in q for x in ["магний","magnesium","калий","potassium","электролит","electrolyte","натрий","sodium","продуктах","sources"])
+    is_ketosis  = any(x in q for x in ["кетоз","ketosis","войти","enter","ускор","speed","саун","sauna","голод","fasting","быстро","fast","24","48"])
+    is_plateau  = any(x in q for x in ["плато","plateau","вес не","не худею","not losing","стоит вес","застрял","stuck"])
+    is_fatigue  = any(x in q for x in ["устал","fatigue","слабост","weakness","нет энергии","no energy","нет сил","tired","вялост","кето грипп","keto flu"])
+    is_training = any(x in q for x in ["трениров","train","спорт","sport","workout","упражн","exercise","силов","кардио","cardio","бег","run"])
+    is_alcohol  = any(x in q for x in ["алкоголь","alcohol","вино","wine","пиво","beer","водк","whisky"])
+    is_products = any(x in q for x in ["список продукт","food list","что можно","can i eat","что нельзя","forbidden","что кушать","что покупать"])
+    is_food     = any(x in q for x in ["съесть сегодня","eat today","что съесть","what to eat today","план питания","meal plan","рацион на сегодня"])
 
     if is_electrolytes:
         if lang == "en":
@@ -781,6 +782,48 @@ def keto_advice_text(u, question):
     elif is_food:
         return meal_plan_text(u)
 
+    elif is_products:
+        if lang == "en":
+            return (
+                "🥩 Keto Food List\n\n"
+                "✅ EAT FREELY:\n"
+                "• Meat: beef, pork, chicken, lamb\n"
+                "• Fish: salmon, tuna, mackerel, sardines\n"
+                "• Eggs (unlimited!)\n"
+                "• Cheese, butter, heavy cream\n"
+                "• Avocado, olives, coconut oil\n"
+                "• Nuts: almonds, walnuts, macadamia\n"
+                "• Greens: spinach, broccoli, zucchini\n\n"
+                "⚠️ LIMIT (count carbs):\n"
+                "• Berries max 80g\n"
+                "• Dark chocolate 85%+ max 20g\n\n"
+                "❌ AVOID:\n"
+                "• Sugar, bread, pasta, rice\n"
+                "• Potatoes, corn, bananas\n"
+                "• Sweet drinks, juices, beer\n"
+                "• Low-fat products (contain sugar!)"
+            )
+        else:
+            return (
+                "🥩 Список продуктов на кето\n\n"
+                "✅ ЕШЬ СВОБОДНО:\n"
+                "• Мясо: говядина, свинина, курица, баранина\n"
+                "• Рыба: лосось, тунец, скумбрия, сардины\n"
+                "• Яйца (без ограничений!)\n"
+                "• Сыр, масло, жирные сливки\n"
+                "• Авокадо, оливки, кокосовое масло\n"
+                "• Орехи: миндаль, грецкие, макадамия\n"
+                "• Зелень: шпинат, брокколи, кабачки\n\n"
+                "⚠️ ОГРАНИЧЬ (считай углеводы):\n"
+                "• Ягоды максимум 80г\n"
+                "• Горький шоколад 85%+ максимум 20г\n\n"
+                "❌ ИСКЛЮЧИ:\n"
+                "• Сахар, хлеб, макароны, рис\n"
+                "• Картошка, кукуруза, бананы\n"
+                "• Сладкие напитки, соки, пиво\n"
+                "• Обезжиренные продукты (содержат сахар!)"
+            )
+
     else:
         if lang == "en":
             return (
@@ -809,7 +852,53 @@ def keto_advice_text(u, question):
                 f"• Что съесть сегодня"
             )
 
-def recovery_text(u, total_carbs):
+def meal_plan_text(u):
+    """Suggest foods based on remaining macros"""
+    lang = u.get("lang","ru")
+    fl=max(0,u["fat_target"]-u["fat"])
+    pl=max(0,u["protein_target"]-u["protein"])
+    cl=max(0,u["carbs_target"]-u["carbs"])
+    kl=max(0,u["cal_target"]-u["calories"])
+    if kl<=50:
+        return L(u,"✅ Норма выполнена! Отличная работа!","✅ Daily goal reached! Great job!")
+    pool=list(FOOD_SUGGESTIONS); plan=[]; rf=fl; rp=pl; rc=cl; rk=kl
+    for _ in range(4):
+        if rk<=50: break
+        best=None; bs=-999
+        for f in pool:
+            if f in [x[0] for x in plan]: continue
+            if f["carbs"]>rc+3: continue
+            s=0
+            if rf>5: s+=min(f["fat"],rf)*2
+            if rp>5: s+=min(f["protein"],rp)*3
+            if f["cal"]<=rk: s+=5
+            else: s-=20
+            if s>bs: bs=s; best=f
+        if best and bs>0:
+            plan.append((best,bs))
+            rf-=best["fat"]; rp-=best["protein"]; rc-=best["carbs"]; rk-=best["cal"]
+            pool.remove(best)
+    if not plan:
+        return L(u,"Ты уже почти у цели!","Almost at your goal!")
+    if lang=="en":
+        lines=[f"🥗 Meal Plan\n\nRemaining: {kl}kcal F:{fl}g P:{pl}g C:{cl}g\n\nSuggested:\n"]
+        tf=tp=tc=tcal=0
+        for i,(f,_) in enumerate(plan,1):
+            lines.append(f"{i}. {f['en']}\n   F:{f['fat']}g P:{f['protein']}g C:{f['carbs']}g {f['cal']}kcal\n")
+            tf+=f["fat"]; tp+=f["protein"]; tc+=f["carbs"]; tcal+=f["cal"]
+        after=kl-tcal
+        lines.append(f"\nTotal: {tcal}kcal F:{tf}g P:{tp}g C:{tc}g")
+        lines.append("\n✅ Goal reached!" if after<=100 else f"\nStill needed: {after}kcal")
+    else:
+        lines=[f"🥗 Рацион на остаток дня\n\nОсталось: {kl}ккал Ж:{fl}г Б:{pl}г У:{cl}г\n\nРекомендую:\n"]
+        tf=tp=tc=tcal=0
+        for i,(f,_) in enumerate(plan,1):
+            lines.append(f"{i}. {f['ru']}\n   Ж:{f['fat']}г Б:{f['protein']}г У:{f['carbs']}г {f['cal']}ккал\n")
+            tf+=f["fat"]; tp+=f["protein"]; tc+=f["carbs"]; tcal+=f["cal"]
+        after=kl-tcal
+        lines.append(f"\nИтого: {tcal}ккал Ж:{tf}г Б:{tp}г У:{tc}г")
+        lines.append("\n✅ Норма выполнена!" if after<=100 else f"\nОстанется: {after}ккал")
+    return "".join(lines)
     h=max(4,int(total_carbs/15))
     if u.get("lang")=="en":
         return (f"Ketosis Recovery Plan\nAfter {total_carbs}g carbs\n\n"
@@ -915,7 +1004,7 @@ def cmd_start(msg):
     uid=msg.from_user.id; u=get_user(uid)
     set_state(uid,"ask_lang")
     bot.send_message(msg.chat.id,
-        "KetOS — Keto for athletes\n\nChoose language / Выбери язык:",
+        "Zona Ketoza — Keto for athletes\n\nChoose language / Выбери язык:",
         reply_markup=lang_kb())
 
 @bot.message_handler(func=lambda m: True)
@@ -948,7 +1037,7 @@ def handle_all(msg):
                 bot.send_message(msg.chat.id,"Language set to English!",reply_markup=main_kb("en"))
             else:
                 set_state(uid,"ask_name")
-                bot.send_message(msg.chat.id,"Welcome to KetOS! What's your name?",reply_markup=types.ReplyKeyboardRemove())
+                bot.send_message(msg.chat.id,"Welcome to Zona Ketoza! What's your name?",reply_markup=types.ReplyKeyboardRemove())
             return
         if text=="Русский":
             u["lang"]="ru"
@@ -957,7 +1046,7 @@ def handle_all(msg):
                 bot.send_message(msg.chat.id,"Язык изменён на русский!",reply_markup=main_kb("ru"))
             else:
                 set_state(uid,"ask_name")
-                bot.send_message(msg.chat.id,"Добро пожаловать в KetOS! Как тебя зовут?",reply_markup=types.ReplyKeyboardRemove())
+                bot.send_message(msg.chat.id,"Добро пожаловать в Зону Кетоза! 🔥 Как тебя зовут?",reply_markup=types.ReplyKeyboardRemove())
             return
         if state in ["ask_lang","switch_lang"]:
             set_state(uid,"menu")
